@@ -82,6 +82,8 @@ CE, ROSH, EMC
   - Firebase Arduino Client Library for ESP8266 and ESP32
   - ESP Mail Client
   - ArduinoJson
+- **Offline Libraries:**
+  - `other_libraries.zip`: Contains all required library dependencies for offline installation.
 
 ### Video Guide:
 [Watch on YouTube](https://www.youtube.com/watch?v=nx7cBQLKk_k&t=6s&ab_channel=CODLAI)

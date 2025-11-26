@@ -1,6 +1,6 @@
 {
   "name": "CODLAI_IOTBOT",
-  "version": "1.1.1",
+  "version": "1.1.3",
   "description": "Library for IOTBOT, an ESP32-based programmable device. Visit www.codlai.com for more information.",
   "keywords": [
     "robotics",
@@ -28,10 +28,12 @@
       "examples/*",
       "IOTBOT.h",
       "README.md",
+      "COMMANDS_README.md",
       "keywords.txt",
       "library.properties",
       "LICENSE",
-      "CHANGELOG.md"
+      "CHANGELOG.md",
+      "other_libraries.zip"
     ]
   },
   "license": "MIT",
