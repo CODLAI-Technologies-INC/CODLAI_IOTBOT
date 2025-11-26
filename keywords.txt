@@ -1,0 +1,131 @@
+#######################################
+# Syntax Coloring Map For CODLAI_IOTBOT
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+IOTBOT	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+playIntro	KEYWORD2
+serialStart	KEYWORD2
+serialWrite	KEYWORD2
+buzzerPlayTone	KEYWORD2
+buzzerPlay	KEYWORD2
+buzzerSoundIntro	KEYWORD2
+buzzertest	KEYWORD2
+lcdSetCursor	KEYWORD2
+lcdWriteMid	KEYWORD2
+lcdWrite	KEYWORD2
+lcdWriteCR	KEYWORD2
+lcdClear	KEYWORD2
+lcdtest	KEYWORD2
+lcdShowLoading	KEYWORD2
+lcdShowStatus	KEYWORD2
+ldrRead	KEYWORD2
+ldrtest	KEYWORD2
+relayWrite	KEYWORD2
+relaytest	KEYWORD2
+potentiometerRead	KEYWORD2
+potentiometertest	KEYWORD2
+joystickXRead	KEYWORD2
+joystickYRead	KEYWORD2
+joystickButtonRead	KEYWORD2
+joysticktest	KEYWORD2
+button1Read	KEYWORD2
+button2Read	KEYWORD2
+button3Read	KEYWORD2
+buttonsAnalogtest	KEYWORD2
+encoderRead	KEYWORD2
+encoderButtonRead	KEYWORD2
+encodertest	KEYWORD2
+moduleStepMotorMotion	KEYWORD2
+moduleDCMotorGOClockWise	KEYWORD2
+moduleDCMotorGOCounterClockWise	KEYWORD2
+moduleDCMotorStop	KEYWORD2
+moduleDCMotorBrake	KEYWORD2
+moduleNtcTempRead	KEYWORD2
+moduleMagneticRead	KEYWORD2
+moduleMatrisButtonAnalogRead	KEYWORD2
+moduleMatrisButtonNumberRead	KEYWORD2
+moduleVibrationDigitalRead	KEYWORD2
+moduleVibrationAnalogRead	KEYWORD2
+moduleUltrasonicDistanceRead	KEYWORD2
+moduleTraficLightWrite	KEYWORD2
+moduleTraficLightWriteRed	KEYWORD2
+moduleTraficLightWriteYellow	KEYWORD2
+moduleTraficLightWriteGreen	KEYWORD2
+moduleMotionRead	KEYWORD2
+moduleSmokeRead	KEYWORD2
+moduleMicRead	KEYWORD2
+moduleSoilMoistureRead	KEYWORD2
+moduleRelayWrite	KEYWORD2
+analogReadPin	KEYWORD2
+analogWritePin	KEYWORD2
+digitalReadPin	KEYWORD2
+digitalWritePin	KEYWORD2
+eepromWriteInt	KEYWORD2
+eepromReadInt	KEYWORD2
+moduleServoGoAngle	KEYWORD2
+moduleDhtTempReadC	KEYWORD2
+moduleDthFeelingTempC	KEYWORD2
+moduleDhtTempReadF	KEYWORD2
+moduleDthFeelingTempF	KEYWORD2
+moduleDhtHumRead	KEYWORD2
+extendSmartLEDPrepare	KEYWORD2
+extendSmartLEDFill	KEYWORD2
+moduleSmartLEDPrepare	KEYWORD2
+moduleSmartLEDWrite	KEYWORD2
+moduleSmartLEDRainbowEffect	KEYWORD2
+moduleSmartLEDRainbowTheaterChaseEffect	KEYWORD2
+moduleSmartLEDTheaterChaseEffect	KEYWORD2
+moduleSmartLEDColorWipeEffect	KEYWORD2
+getColor	KEYWORD2
+moduleIRReadHex	KEYWORD2
+moduleIRReadDecimalx32	KEYWORD2
+moduleIRReadDecimalx8	KEYWORD2
+moduleRFIDRead	KEYWORD2
+serverStart	KEYWORD2
+serverCreateLocalPage	KEYWORD2
+serverHandleDNS	KEYWORD2
+serverContinue	KEYWORD2
+fbServerSetandStartWithUser	KEYWORD2
+fbServerSetInt	KEYWORD2
+fbServerSetFloat	KEYWORD2
+fbServerSetString	KEYWORD2
+fbServerSetDouble	KEYWORD2
+fbServerSetBool	KEYWORD2
+fbServerSetJSON	KEYWORD2
+fbServerGetInt	KEYWORD2
+fbServerGetFloat	KEYWORD2
+fbServerGetString	KEYWORD2
+fbServerGetDouble	KEYWORD2
+fbServerGetBool	KEYWORD2
+fbServerGetJSON	KEYWORD2
+wifiStartAndConnect	KEYWORD2
+wifiConnectionControl	KEYWORD2
+wifiGetMACAddress	KEYWORD2
+wifiGetIPAddress	KEYWORD2
+initESPNow	KEYWORD2
+setWiFiChannel	KEYWORD2
+sendESPNow	KEYWORD2
+registerOnRecv	KEYWORD2
+sendTelegram	KEYWORD2
+bluetoothStart	KEYWORD2
+bluetoothConnect	KEYWORD2
+bluetoothWrite	KEYWORD2
+bluetoothRead	KEYWORD2
+getBluetoothObject	KEYWORD2
+sendEmail	KEYWORD2
+getWeather	KEYWORD2
+getWikipedia	KEYWORD2
+lcdWriteFixedTxt	KEYWORD2
+lcdWriteFixed	KEYWORD2
+calibrateJoystick	KEYWORD2
+addBroadcastPeer	KEYWORD2

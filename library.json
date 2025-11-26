@@ -1,0 +1,50 @@
+{
+  "name": "CODROB_IOTBOT",
+  "version": "1.0.0",
+  "description": "Library for IOTBOT, an ESP32-based programmable device. Visit www.codlai.com for more information.",
+  "keywords": [
+    "robotics",
+    "car",
+    "servo",
+    "dcmotor",
+    "control",
+    "CODLAI",
+    "IOTBOT"
+  ],
+  "authors": [
+    {
+      "name": "Samed Kaya",
+      "email": "info@codlai.com",
+      "url": "https://codlai.com",
+      "maintainer": true
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CODLAI-Technologies-INC/CODROB_IOTBOT"
+  },
+  "export": {
+    "include": [
+      "examples/*",
+      "IOTBOT.h",
+      "README.md",
+      "keywords.txt",
+      "library.properties",
+      "LICENSE",
+      "CHANGELOG.md"
+    ]
+  },
+  "license": "MIT",
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "espressif8266",
+    "espressif32"
+  ],
+  "examples": [
+    "examples/main/IOTBOT_basic_example"
+  ],
+  "homepage": "https://github.com/CODLAI-Technologies-INC/CODROB_IOTBOT",
+  "dependencies": {}
+}
