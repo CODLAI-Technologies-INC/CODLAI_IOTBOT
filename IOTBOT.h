@@ -421,6 +421,17 @@ public:
   BluetoothSerial* getBluetoothObject(); // Gelişmiş işlemler için nesneye erişim
 #endif
 
+  /*********************************** Multi-Tasking (ESP32 Only) ***********************************
+   */
+#if defined(ESP32)
+  void createTask(TaskFunction_t taskFunction, const char *name, int coreID = 1, int stackSize = 10000, int priority = 1);
+  void createTask(void (*taskFunction)(), const char *name, int coreID = 1, int stackSize = 10000, int priority = 1);
+  void createLoopTask(void (*taskFunction)(), const char *name, int coreID = 1, int priority = 1, int stackSize = 10000);
+  void taskDelay(int ms);
+  static void _taskEntry(void *pvParameters);
+  static void _taskLoopEntry(void *pvParameters);
+#endif
+
   /*********************************** Email ***********************************
    */
 #if defined(USE_EMAIL)
@@ -2755,6 +2766,76 @@ inline bool IOTBOT::addBroadcastPeer(int channel)
     }
   }
   return true;
+}
+#endif
+
+/*********************************** Multi-Tasking Implementation ***********************************/
+#if defined(ESP32)
+inline void IOTBOT::taskDelay(int ms)
+{
+  vTaskDelay(ms / portTICK_PERIOD_MS);
+}
+
+inline void IOTBOT::_taskEntry(void *pvParameters)
+{
+  void (*taskFunc)() = (void (*)())pvParameters;
+  if (taskFunc)
+  {
+    taskFunc();
+  }
+  vTaskDelete(NULL);
+}
+
+inline void IOTBOT::_taskLoopEntry(void *pvParameters)
+{
+  void (*taskFunc)() = (void (*)())pvParameters;
+  if (taskFunc)
+  {
+    for (;;)
+    {
+      taskFunc();
+      // Safety delay to prevent WDT reset if user forgets delay in empty loop
+      // Kullanıcı boş döngü yaparsa WDT resetlenmesini önlemek için güvenlik gecikmesi
+      vTaskDelay(1); 
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+inline void IOTBOT::createTask(TaskFunction_t taskFunction, const char *name, int coreID, int stackSize, int priority)
+{
+  xTaskCreatePinnedToCore(
+      taskFunction, /* Task function */
+      name,         /* Name of task */
+      stackSize,    /* Stack size of task */
+      NULL,         /* Parameter of the task */
+      priority,     /* Priority of the task */
+      NULL,         /* Task handle to keep track of created task */
+      coreID);      /* Pin task to core */
+}
+
+inline void IOTBOT::createTask(void (*taskFunction)(), const char *name, int coreID, int stackSize, int priority)
+{
+  xTaskCreatePinnedToCore(
+      _taskEntry,          /* Wrapper function */
+      name,                /* Name of task */
+      stackSize,           /* Stack size of task */
+      (void *)taskFunction, /* Pass user function as parameter */
+      priority,            /* Priority of the task */
+      NULL,                /* Task handle */
+      coreID);             /* Pin task to core */
+}
+
+inline void IOTBOT::createLoopTask(void (*taskFunction)(), const char *name, int coreID, int priority, int stackSize)
+{
+  xTaskCreatePinnedToCore(
+      _taskLoopEntry,      /* Wrapper function */
+      name,                /* Name of task */
+      stackSize,           /* Stack size of task */
+      (void *)taskFunction, /* Pass user function as parameter */
+      priority,            /* Priority of the task */
+      NULL,                /* Task handle */
+      coreID);             /* Pin task to core */
 }
 #endif
 

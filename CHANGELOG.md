@@ -172,3 +172,11 @@
 ### Added
 - İlk sürüm yayımlandı.
 
+## [1.1.0] - 2025-11-26
+### Added
+- **Multi-Tasking Support (ESP32 Only)**:
+  - `createTask`: Simplified task creation.
+  - `createLoopTask`: Automatically loops task functions, ideal for block-based coding.
+  - `taskDelay`: Simplified non-blocking delay for tasks.
+- Updated `keywords.txt` and documentation.
+

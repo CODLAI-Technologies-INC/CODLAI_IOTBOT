@@ -129,3 +129,6 @@ lcdWriteFixedTxt	KEYWORD2
 lcdWriteFixed	KEYWORD2
 calibrateJoystick	KEYWORD2
 addBroadcastPeer	KEYWORD2
+createTask	KEYWORD2
+createLoopTask	KEYWORD2
+taskDelay	KEYWORD2

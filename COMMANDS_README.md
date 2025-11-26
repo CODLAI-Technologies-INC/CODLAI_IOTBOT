@@ -165,3 +165,20 @@
 **EN:** Writes data to the serial port (Overloaded for String, int, float, bool).
 **TR:** Seri porta veri yazar (String, int, float, bool için aşırı yüklenmiştir).
 **Syntax:** `void serialWrite(data)`
+
+### Multi-Tasking (ESP32 Only) / Çoklu Görev (Sadece ESP32)
+
+#### createTask
+**EN:** Creates a new task on a specific core.
+**TR:** Belirli bir çekirdekte yeni bir görev oluşturur.
+**Syntax:** `void createTask(void (*taskFunction)(), const char *name, int coreID, int stackSize, int priority)`
+
+#### createLoopTask
+**EN:** Creates a task that automatically loops the provided function.
+**TR:** Verilen fonksiyonu otomatik olarak döngüye sokan bir görev oluşturur.
+**Syntax:** `void createLoopTask(void (*taskFunction)(), const char *name, int coreID, int priority, int stackSize)`
+
+#### taskDelay
+**EN:** Delays the task for a specific number of milliseconds without blocking the processor.
+**TR:** İşlemciyi kilitlemeden görevi belirli bir milisaniye kadar bekletir.
+**Syntax:** `void taskDelay(int ms)`
