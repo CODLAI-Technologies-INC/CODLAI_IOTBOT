@@ -979,7 +979,7 @@ inline void IOTBOT::relayWrite(bool status)
   digitalWrite(RELAY_PIN, status);
 }
 
-inline IOTBOT::relaytest()
+inline void IOTBOT::relaytest()
 {
   if (counterRelay < 1)
   {

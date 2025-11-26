@@ -180,3 +180,7 @@
   - `taskDelay`: Simplified non-blocking delay for tasks.
 - Updated `keywords.txt` and documentation.
 
+## [1.1.1] - 2025-11-26
+### Fixed
+- Fixed syntax error in `relaytest` function (missing return type).
+
