@@ -4,6 +4,17 @@
  *
  * 📌 To enable Firebase features, remove the comment (//) before the 'USE_FIREBASE' definition in
  * IOTBOT_Config.h. Otherwise, Firebase functions will be disabled.
+ *
+ * Firebase yapılandırma adımları / Firebase setup steps:
+ * 1. Firebase Console > Realtime Database bölümünde veritabanı oluşturun ve URL'yi kopyalayın ("https://...firebaseio.com/").
+ *    / Create a database under Firebase Console → Realtime Database and copy its URL.
+ * 2. Project Settings > General sekmesinde "Web API Key" alanını bulun ve `FIREBASE_API_KEY` değerine yazın.
+ *    / In Project Settings → General, copy the Web API Key into `FIREBASE_API_KEY`.
+ * 3. Authentication > Sign-in method menüsünde Email/Password girişini etkinleştirin ve "Users" sekmesinden bir e-posta hesabı
+ *    oluşturun. / Enable Email/Password in Authentication → Sign-in method and create a user under the Users tab; place the
+ *    credentials into `USER_EMAIL` and `USER_PASSWORD`.
+ * 4. `USE_FIREBASE` tanımlandığında WiFi yardımcıları otomatik olarak açılır; koda ekstra `#define USE_WIFI` eklemeniz gerekmez.
+ *    / Defining `USE_FIREBASE` automatically pulls in the Wi-Fi helpers, so no extra `#define USE_WIFI` is required.
  */
 #define USE_FIREBASE
 #include <IOTBOT.h>

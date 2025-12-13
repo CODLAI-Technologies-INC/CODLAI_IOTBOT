@@ -383,6 +383,10 @@
     *   `void sendTelegram(String token, String chatId, String message)`
         *   **EN:** Sends a message via a Telegram bot.
         *   **TR:** Telegram botu üzerinden mesaj gönderir.
+*   **IFTTT**:
+    *   `bool triggerIFTTTEvent(const String &eventName, const String &webhookKey, const String &jsonPayload = "{}")`
+        *   **EN:** Triggers an IFTTT Webhook event with an optional JSON payload. Returns `true` when the webhook responds with HTTP 200.
+        *   **TR:** Opsiyonel JSON gövdesiyle IFTTT Webhook olayını tetikler. Webhook HTTP 200 döndüğünde `true` verir.
 *   **Email / E-posta**:
     *   `void sendEmail(...)`
         *   **EN:** Sends an email via SMTP protocol.

@@ -2,6 +2,14 @@
 
 # CODLAI ERA (New Models)
 
+## [1.2.0] - 2025-03-09
+### Added
+- `triggerIFTTTEvent` helper for HTTPS Maker Webhook calls.
+- New advanced example: `IOTBOT_IFTTT_Webhook_Example.ino`.
+
+### Updated
+- Documentation, keywords, and metadata to highlight the IFTTT workflow.
+
 ## [1.0.0] - 2025-03-04
 ### Added
 - **Rebranding**: Transitioned from CODROB to CODLAI.

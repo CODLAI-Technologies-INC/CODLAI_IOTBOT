@@ -117,6 +117,7 @@ setWiFiChannel	KEYWORD2
 sendESPNow	KEYWORD2
 registerOnRecv	KEYWORD2
 sendTelegram	KEYWORD2
+triggerIFTTTEvent	KEYWORD2
 bluetoothStart	KEYWORD2
 bluetoothConnect	KEYWORD2
 bluetoothWrite	KEYWORD2

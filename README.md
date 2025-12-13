@@ -59,6 +59,10 @@ C++, MicroPython (Text and Block-Based)
 - Programmable with open-source editors
 - Documentation for developing IoT applications
 
+### Cloud Integrations
+- Send instant alerts via Telegram bots with `sendTelegram()`.
+- Connect directly to IFTTT services (Google Sheets, Discord, smart lights, etc.) using the new `triggerIFTTTEvent()` helper. See `examples/main/2-Advanced/IOTBOT_IFTTT_Webhook_Example.ino` for a ready-to-run sketch.
+
 ### Security:
 AES and SSL/TLS hardware accelerators
 
@@ -150,6 +154,10 @@ C++, MicroPython (Metin ve Blok Tabanlı)
 - Cihaz üzerinde bilgilendirme bölümleri
 - Açık kaynaklı editörler ile programlayabilme
 - IoT uygulamalar yapmak için gerekli dokümantasyon
+
+### Bulut Entegrasyonları
+- `sendTelegram()` ile Telegram botlarına anlık bildirimler gönderebilirsiniz.
+- Yeni `triggerIFTTTEvent()` fonksiyonu ile IFTTT servislerine (Google Sheets, Discord, akıllı ışıklar vb.) doğrudan bağlanabilirsiniz. Hazır örnek için `examples/main/2-Advanced/IOTBOT_IFTTT_Webhook_Example.ino` dosyasına göz atın.
 
 ### Güvenlik:
 AES ve SSL/TLS için donanım hızlandırıcıları

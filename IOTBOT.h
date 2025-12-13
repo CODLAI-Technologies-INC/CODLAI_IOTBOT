@@ -80,7 +80,7 @@
 #include <ESP_Mail_Client.h>
 #endif
 
-#if defined(USE_TELEGRAM) || defined(USE_WEATHER) || defined(USE_WIKIPEDIA)
+#if defined(USE_TELEGRAM) || defined(USE_WEATHER) || defined(USE_WIKIPEDIA) || defined(USE_IFTTT)
 #ifndef USE_WIFI
 #define USE_WIFI
 #endif
@@ -409,6 +409,12 @@ public:
    */
 #if defined(USE_TELEGRAM)
   void sendTelegram(String token, String chatId, String message);
+#endif
+
+  /*********************************** IFTTT ***********************************
+   */
+#if defined(USE_IFTTT)
+  bool triggerIFTTTEvent(const String &eventName, const String &webhookKey, const String &jsonPayload = "{}");
 #endif
 
   /*********************************** Bluetooth ***********************************
@@ -2513,6 +2519,50 @@ inline void IOTBOT::sendTelegram(String token, String chatId, String message)
   }
   
   http.end();
+}
+#endif
+
+/*********************************** IFTTT ***********************************/
+#if defined(USE_IFTTT)
+inline bool IOTBOT::triggerIFTTTEvent(const String &eventName, const String &webhookKey, const String &jsonPayload)
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println("[IFTTT]: WiFi not connected!");
+    return false;
+  }
+
+  if (eventName.length() == 0 || webhookKey.length() == 0)
+  {
+    Serial.println("[IFTTT]: Event name or webhook key is missing.");
+    return false;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String url = "https://maker.ifttt.com/trigger/" + eventName + "/with/key/" + webhookKey;
+
+  Serial.println("[IFTTT]: Triggering '" + eventName + "'...");
+
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/json");
+  int httpCode = http.POST(jsonPayload);
+
+  if (httpCode > 0)
+  {
+    Serial.println("[IFTTT]: HTTP " + String(httpCode));
+    String payload = http.getString();
+    Serial.println("[IFTTT]: Response => " + payload);
+  }
+  else
+  {
+    Serial.println("[IFTTT]: Error sending request => " + http.errorToString(httpCode));
+  }
+
+  http.end();
+  return httpCode == HTTP_CODE_OK;
 }
 #endif
 
