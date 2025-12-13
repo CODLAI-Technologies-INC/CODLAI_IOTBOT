@@ -2,6 +2,10 @@
 
 # CODLAI ERA (New Models)
 
+## [1.2.1] - 2025-03-09
+### Fixed
+- PlatformIO yeniden yayını için sürüm numarası artırıldı.
+
 ## [1.2.0] - 2025-03-09
 ### Added
 - `triggerIFTTTEvent` helper for HTTPS Maker Webhook calls.
