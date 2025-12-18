@@ -31,7 +31,7 @@ void setup() {
   delay(1000);
 
   // Wikipedia'dan bilgi al / Get info from Wikipedia
-  String query = "Arduino";
+  String query = "Robot";
   iotbot.lcdShowLoading("Araniyor: " + query); // Searching: ...
   Serial.println("Searching Wikipedia for: " + query);
   

@@ -29,7 +29,7 @@
  *    - Name: Görevin metin olarak adı (örn: "Task1"). / Name of the task as string.
  *    - CoreID: Hangi çekirdekte çalışacak? (0 veya 1). / Which core to run on? (0 or 1).
  *      * Core 0: Genellikle WiFi ve arka plan işleri için kullanılır. / Usually for WiFi and background tasks.
- *      * Core 1: Arduino'nun ana döngüsü (loop) burada çalışır. / Arduino main loop runs here.
+ *      * Core 1: IOTBOT'un ana döngüsü (loop) burada çalışır. / IOTBOT main loop runs here.
  *    - Priority: Öncelik seviyesi (1-9). Varsayılan: 1. / Priority level. Default: 1.
  *    - StackSize: Bellek boyutu. Varsayılan: 10000. / Memory size. Default: 10000.
  * 

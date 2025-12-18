@@ -67,6 +67,9 @@
 #endif
 
 #if defined(USE_ESPNOW)
+#ifndef USE_WIFI
+#define USE_WIFI
+#endif
 #include <esp_now.h>
 #if defined(ESP32)
 #include <esp_wifi.h>

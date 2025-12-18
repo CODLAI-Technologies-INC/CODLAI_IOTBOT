@@ -6,6 +6,11 @@
 ### Fixed
 - PlatformIO yeniden yayını için sürüm numarası artırıldı.
 
+## [1.2.3] - 2025-12-18
+### Added
+- New `IOTBOT_Multi_Task_Example.ino` demonstrates the simplified `createLoopTask` APIs for ESP32-based multitasking flows.
+- Updated `IOTBOT_Wikipedia_Example.ino` and adjacent advanced samples with clearer, bilingual instructions and timing comments so the HTTP helpers stay reliable.
+
 ## [1.2.2] - 2025-03-09
 ### Fixed
 - `USE_WIKIPEDIA` bloğundaki yorum satırı kapatılarak `getWikipedia()` betimlemesi tekrar etkinleştirildi.
