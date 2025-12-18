@@ -6,6 +6,10 @@
 ### Fixed
 - PlatformIO yeniden yayını için sürüm numarası artırıldı.
 
+## [1.2.2] - 2025-03-09
+### Fixed
+- `USE_WIKIPEDIA` bloğundaki yorum satırı kapatılarak `getWikipedia()` betimlemesi tekrar etkinleştirildi.
+
 ## [1.2.0] - 2025-03-09
 ### Added
 - `triggerIFTTTEvent` helper for HTTPS Maker Webhook calls.

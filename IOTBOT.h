@@ -451,6 +451,7 @@ public:
 #endif
 
   /*********************************** Wikipedia ***********************************
+   */
 #if defined(USE_WIKIPEDIA)
   String getWikipedia(String query, String lang = "en");
 #endif
