@@ -18,9 +18,16 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
+#include <time.h>
 #include <Stepper.h>
 #include <LittleFS.h> // Ensure LittleFS is available for dependencies like Firebase
-#include <WiFi.h> // Ensure WiFi is available for dependencies like Firebase
+
+// WiFi header differs by platform
+#if defined(ESP32)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
 
 // Feature dependent includes
 #if defined(USE_SERVO)
@@ -63,7 +70,11 @@
 #endif
 
 #if defined(USE_WIFI)
+#if defined(ESP32)
 #include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
 #endif
 
 #if defined(USE_ESPNOW)
@@ -279,8 +290,37 @@ public:
 
   /*********************************** EEPROM  ***********************************
    */
+  bool eepromBegin(size_t size = 1024);
+  bool eepromCommit();
+  void eepromEnd();
+
+  bool eepromWriteByte(int address, uint8_t value);
+  uint8_t eepromReadByte(int address, uint8_t defaultValue = 0);
+
+  // NOTE: eepromWriteInt/eepromReadInt store 16-bit (2 bytes) for backward compatibility.
   void eepromWriteInt(int address, int value);
   int eepromReadInt(int address);
+
+  bool eepromWriteInt32(int address, int32_t value);
+  int32_t eepromReadInt32(int address, int32_t defaultValue = 0);
+  bool eepromWriteUInt32(int address, uint32_t value);
+  uint32_t eepromReadUInt32(int address, uint32_t defaultValue = 0);
+  bool eepromWriteFloat(int address, float value);
+  float eepromReadFloat(int address, float defaultValue = 0.0f);
+
+  // Stores: [uint16 length][bytes...]
+  bool eepromWriteString(int address, const String &value, uint16_t maxLen = 128);
+  String eepromReadString(int address, uint16_t maxLen = 128);
+
+  bool eepromWriteBytes(int address, const uint8_t *data, size_t len);
+  bool eepromReadBytes(int address, uint8_t *data, size_t len);
+  bool eepromClear(int startAddress = 0, size_t length = 0, uint8_t fill = 0xFF);
+
+  // Record helpers (recommended): Stores a blob with header + CRC32
+  // Layout: [uint16 magic][uint16 version][uint16 len][uint32 crc32][bytes...]
+  uint32_t eepromCrc32(const uint8_t *data, size_t len, uint32_t seed = 0xFFFFFFFF);
+  bool eepromWriteRecord(int address, const uint8_t *data, uint16_t len, uint16_t version = 1);
+  bool eepromReadRecord(int address, uint8_t *out, uint16_t maxLen, uint16_t *outLen = nullptr, uint16_t *outVersion = nullptr);
 
   /*********************************** Servo Motor Sensor ***********************************
    */
@@ -366,6 +406,18 @@ public:
   String wifiGetMACAddress();
   String wifiGetIPAddress();
 #endif
+
+  /*********************************** NTP Time ***********************************
+   * TR: WiFi baglantisindan SONRA cagirilmalidir.
+   * EN: Must be called AFTER WiFi connection is established.
+   */
+  // TR/EN: Recommended simple setup for blocks.
+  // timezoneHours: UTC offset in hours (e.g., Turkey is +3)
+  bool ntpBegin(int timezoneHours = 0, const char *ntpServer = "pool.ntp.org", int daylightOffsetHours = 0, uint32_t timeoutMs = 10000);
+  bool ntpSync(const char *ntpServer = "pool.ntp.org", long gmtOffsetSec = 0, int daylightOffsetSec = 0, uint32_t timeoutMs = 10000);
+  bool ntpIsTimeValid(time_t minEpoch = 1609459200);
+  time_t ntpGetEpoch();
+  String ntpGetDateTimeString();
 
   /*********************************** ESP-NOW ***********************************
    */
@@ -468,6 +520,14 @@ public:
 #endif
 
 private:
+  static constexpr uint16_t _EEPROM_RECORD_MAGIC = 0xCD1A;
+  static constexpr time_t _NTP_VALID_EPOCH = 1609459200; // 2021-01-01
+
+  bool _eepromReady = false;
+  size_t _eepromSize = 0;
+
+  bool _eepromEnsure(size_t minSize);
+
   void createTurkishChars();
   String convertTR(String text);
 
@@ -1702,21 +1762,550 @@ inline void IOTBOT::digitalWritePin(int pin, bool value)
 
 /*********************************** EEPROM  ***********************************
  */
+inline bool IOTBOT::_eepromEnsure(size_t minSize)
+{
+  if (_eepromReady && _eepromSize >= minSize)
+  {
+    return true;
+  }
+
+  size_t targetSize = _eepromSize;
+  if (targetSize == 0)
+  {
+    targetSize = 1024;
+  }
+  if (targetSize < minSize)
+  {
+    targetSize = minSize;
+  }
+
+  return eepromBegin(targetSize);
+}
+
+inline bool IOTBOT::eepromBegin(size_t size)
+{
+  if (size == 0)
+  {
+    size = 1024;
+  }
+
+  if (_eepromReady && _eepromSize == size)
+  {
+    return true;
+  }
+
+  _eepromSize = size;
+#if defined(ESP8266)
+  EEPROM.begin(size);
+  _eepromReady = true;
+#else
+  _eepromReady = EEPROM.begin(size);
+#endif
+  return _eepromReady;
+}
+
+inline bool IOTBOT::eepromCommit()
+{
+  if (!_eepromEnsure(2))
+  {
+    return false;
+  }
+
+  return EEPROM.commit();
+}
+
+inline void IOTBOT::eepromEnd()
+{
+  if (_eepromReady)
+  {
+    EEPROM.end();
+  }
+  _eepromReady = false;
+  _eepromSize = 0;
+}
+
+inline bool IOTBOT::eepromWriteByte(int address, uint8_t value)
+{
+  if (address < 0)
+  {
+    return false;
+  }
+
+  if (!_eepromEnsure((size_t)address + 1))
+  {
+    return false;
+  }
+
+  EEPROM.write(address, value);
+  return EEPROM.commit();
+}
+
+inline uint8_t IOTBOT::eepromReadByte(int address, uint8_t defaultValue)
+{
+  if (address < 0)
+  {
+    return defaultValue;
+  }
+
+  if (!_eepromEnsure((size_t)address + 1))
+  {
+    return defaultValue;
+  }
+
+  return EEPROM.read(address);
+}
+
 inline void IOTBOT::eepromWriteInt(int address, int value) // EEPROM'a güvenli bir şekilde int türünde veri yazmak için fonksiyon
 {
-  byte highByte = highByte(value); // int'in yüksek baytını al
-  byte lowByte = lowByte(value);   // int'in düşük baytını al
+  if (address < 0)
+  {
+    return;
+  }
 
-  EEPROM.write(address, highByte);    // İlk baytı EEPROM'a yaz
-  EEPROM.write(address + 1, lowByte); // İkinci baytı EEPROM'a yaz
+  if (!_eepromEnsure((size_t)address + 2))
+  {
+    return;
+  }
+
+  uint8_t hi = highByte(value); // int'in yüksek baytını al
+  uint8_t lo = lowByte(value);  // int'in düşük baytını al
+
+  EEPROM.write(address, hi);      // İlk baytı EEPROM'a yaz
+  EEPROM.write(address + 1, lo);  // İkinci baytı EEPROM'a yaz
   EEPROM.commit();                    // Değişiklikleri kaydetmek için commit işlemi yapılmalıdır
 }
 
 inline int IOTBOT::eepromReadInt(int address) // EEPROM'dan int türünde veri okumak için fonksiyon
 {
-  byte highByte = EEPROM.read(address);    // İlk baytı oku
-  byte lowByte = EEPROM.read(address + 1); // İkinci baytı oku
-  return word(highByte, lowByte);          // Yüksek ve düşük baytları birleştirerek int değeri oluştur
+  if (address < 0)
+  {
+    return 0;
+  }
+
+  if (!_eepromEnsure((size_t)address + 2))
+  {
+    return 0;
+  }
+
+  uint8_t hi = EEPROM.read(address);     // İlk baytı oku
+  uint8_t lo = EEPROM.read(address + 1); // İkinci baytı oku
+  return word(hi, lo);                   // Yüksek ve düşük baytları birleştirerek int değeri oluştur
+}
+
+inline bool IOTBOT::eepromWriteInt32(int address, int32_t value)
+{
+  if (address < 0)
+  {
+    return false;
+  }
+  if (!_eepromEnsure((size_t)address + sizeof(int32_t)))
+  {
+    return false;
+  }
+
+  EEPROM.put(address, value);
+  return EEPROM.commit();
+}
+
+inline int32_t IOTBOT::eepromReadInt32(int address, int32_t defaultValue)
+{
+  if (address < 0)
+  {
+    return defaultValue;
+  }
+  if (!_eepromEnsure((size_t)address + sizeof(int32_t)))
+  {
+    return defaultValue;
+  }
+
+  int32_t value;
+  EEPROM.get(address, value);
+  return value;
+}
+
+inline bool IOTBOT::eepromWriteUInt32(int address, uint32_t value)
+{
+  if (address < 0)
+  {
+    return false;
+  }
+  if (!_eepromEnsure((size_t)address + sizeof(uint32_t)))
+  {
+    return false;
+  }
+
+  EEPROM.put(address, value);
+  return EEPROM.commit();
+}
+
+inline uint32_t IOTBOT::eepromReadUInt32(int address, uint32_t defaultValue)
+{
+  if (address < 0)
+  {
+    return defaultValue;
+  }
+  if (!_eepromEnsure((size_t)address + sizeof(uint32_t)))
+  {
+    return defaultValue;
+  }
+
+  uint32_t value;
+  EEPROM.get(address, value);
+  return value;
+}
+
+inline bool IOTBOT::eepromWriteFloat(int address, float value)
+{
+  if (address < 0)
+  {
+    return false;
+  }
+  if (!_eepromEnsure((size_t)address + sizeof(float)))
+  {
+    return false;
+  }
+
+  EEPROM.put(address, value);
+  return EEPROM.commit();
+}
+
+inline float IOTBOT::eepromReadFloat(int address, float defaultValue)
+{
+  if (address < 0)
+  {
+    return defaultValue;
+  }
+  if (!_eepromEnsure((size_t)address + sizeof(float)))
+  {
+    return defaultValue;
+  }
+
+  float value;
+  EEPROM.get(address, value);
+  return value;
+}
+
+inline bool IOTBOT::eepromWriteBytes(int address, const uint8_t *data, size_t len)
+{
+  if (address < 0 || data == nullptr)
+  {
+    return false;
+  }
+
+  if (len == 0)
+  {
+    return true;
+  }
+
+  if (!_eepromEnsure((size_t)address + len))
+  {
+    return false;
+  }
+
+  for (size_t i = 0; i < len; i++)
+  {
+    EEPROM.write(address + (int)i, data[i]);
+  }
+
+  return EEPROM.commit();
+}
+
+inline bool IOTBOT::eepromReadBytes(int address, uint8_t *data, size_t len)
+{
+  if (address < 0 || data == nullptr)
+  {
+    return false;
+  }
+
+  if (len == 0)
+  {
+    return true;
+  }
+
+  if (!_eepromEnsure((size_t)address + len))
+  {
+    return false;
+  }
+
+  for (size_t i = 0; i < len; i++)
+  {
+    data[i] = EEPROM.read(address + (int)i);
+  }
+
+  return true;
+}
+
+inline bool IOTBOT::eepromWriteString(int address, const String &value, uint16_t maxLen)
+{
+  if (address < 0)
+  {
+    return false;
+  }
+
+  if (maxLen == 0)
+  {
+    return false;
+  }
+
+  uint16_t len = (uint16_t)value.length();
+  if (len > maxLen)
+  {
+    len = maxLen;
+  }
+
+  size_t total = sizeof(uint16_t) + (size_t)len;
+  if (!_eepromEnsure((size_t)address + total))
+  {
+    return false;
+  }
+
+  EEPROM.put(address, len);
+  for (uint16_t i = 0; i < len; i++)
+  {
+    EEPROM.write(address + (int)sizeof(uint16_t) + (int)i, (uint8_t)value[i]);
+  }
+
+  return EEPROM.commit();
+}
+
+inline String IOTBOT::eepromReadString(int address, uint16_t maxLen)
+{
+  if (address < 0 || maxLen == 0)
+  {
+    return String("");
+  }
+
+  if (!_eepromEnsure((size_t)address + sizeof(uint16_t)))
+  {
+    return String("");
+  }
+
+  uint16_t len = 0;
+  EEPROM.get(address, len);
+
+  if (len > maxLen)
+  {
+    len = maxLen;
+  }
+
+  if (!_eepromEnsure((size_t)address + sizeof(uint16_t) + (size_t)len))
+  {
+    return String("");
+  }
+
+  String out;
+  out.reserve(len);
+  for (uint16_t i = 0; i < len; i++)
+  {
+    out += (char)EEPROM.read(address + (int)sizeof(uint16_t) + (int)i);
+  }
+  return out;
+}
+
+inline bool IOTBOT::eepromClear(int startAddress, size_t length, uint8_t fill)
+{
+  if (startAddress < 0)
+  {
+    return false;
+  }
+
+  if (length == 0)
+  {
+    length = (_eepromSize == 0) ? 1024 : _eepromSize;
+  }
+
+  if (!_eepromEnsure((size_t)startAddress + length))
+  {
+    return false;
+  }
+
+  for (size_t i = 0; i < length; i++)
+  {
+    EEPROM.write(startAddress + (int)i, fill);
+  }
+
+  return EEPROM.commit();
+}
+
+inline uint32_t IOTBOT::eepromCrc32(const uint8_t *data, size_t len, uint32_t seed)
+{
+  if (data == nullptr)
+  {
+    return 0;
+  }
+
+  uint32_t crc = seed;
+  for (size_t i = 0; i < len; i++)
+  {
+    crc ^= data[i];
+    for (uint8_t b = 0; b < 8; b++)
+    {
+      if (crc & 1)
+      {
+        crc = (crc >> 1) ^ 0xEDB88320UL;
+      }
+      else
+      {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc ^ 0xFFFFFFFFUL;
+}
+
+inline bool IOTBOT::eepromWriteRecord(int address, const uint8_t *data, uint16_t len, uint16_t version)
+{
+  if (address < 0 || data == nullptr)
+  {
+    return false;
+  }
+
+  const size_t headerSize = 2 + 2 + 2 + 4;
+  if (!_eepromEnsure((size_t)address + headerSize + (size_t)len))
+  {
+    return false;
+  }
+
+  const uint16_t magic = _EEPROM_RECORD_MAGIC;
+  const uint32_t crc = eepromCrc32(data, len);
+
+  EEPROM.put(address, magic);
+  EEPROM.put(address + 2, version);
+  EEPROM.put(address + 4, len);
+  EEPROM.put(address + 6, crc);
+
+  for (uint16_t i = 0; i < len; i++)
+  {
+    EEPROM.write(address + (int)headerSize + (int)i, data[i]);
+  }
+
+  return EEPROM.commit();
+}
+
+inline bool IOTBOT::eepromReadRecord(int address, uint8_t *out, uint16_t maxLen, uint16_t *outLen, uint16_t *outVersion)
+{
+  if (address < 0 || out == nullptr || maxLen == 0)
+  {
+    return false;
+  }
+
+  const size_t headerSize = 2 + 2 + 2 + 4;
+  if (!_eepromEnsure((size_t)address + headerSize))
+  {
+    return false;
+  }
+
+  uint16_t magic = 0;
+  uint16_t version = 0;
+  uint16_t len = 0;
+  uint32_t storedCrc = 0;
+
+  EEPROM.get(address, magic);
+  if (magic != _EEPROM_RECORD_MAGIC)
+  {
+    return false;
+  }
+
+  EEPROM.get(address + 2, version);
+  EEPROM.get(address + 4, len);
+  EEPROM.get(address + 6, storedCrc);
+
+  if (len > maxLen)
+  {
+    return false;
+  }
+
+  if (!_eepromEnsure((size_t)address + headerSize + (size_t)len))
+  {
+    return false;
+  }
+
+  for (uint16_t i = 0; i < len; i++)
+  {
+    out[i] = EEPROM.read(address + (int)headerSize + (int)i);
+  }
+
+  const uint32_t calcCrc = eepromCrc32(out, len);
+  if (calcCrc != storedCrc)
+  {
+    return false;
+  }
+
+  if (outLen)
+  {
+    *outLen = len;
+  }
+  if (outVersion)
+  {
+    *outVersion = version;
+  }
+  return true;
+}
+
+inline bool IOTBOT::ntpSync(const char *ntpServer, long gmtOffsetSec, int daylightOffsetSec, uint32_t timeoutMs)
+{
+  if (ntpServer == nullptr || ntpServer[0] == '\0')
+  {
+    ntpServer = "pool.ntp.org";
+  }
+
+  configTime(gmtOffsetSec, daylightOffsetSec, ntpServer);
+
+  const uint32_t startMs = millis();
+  while ((millis() - startMs) < timeoutMs)
+  {
+    time_t now = time(nullptr);
+    if (now >= _NTP_VALID_EPOCH)
+    {
+      return true;
+    }
+    delay(50);
+  }
+
+  return false;
+}
+
+inline bool IOTBOT::ntpBegin(int timezoneHours, const char *ntpServer, int daylightOffsetHours, uint32_t timeoutMs)
+{
+  const long gmtOffsetSec = (long)timezoneHours * 3600L;
+  const int daylightOffsetSec = daylightOffsetHours * 3600;
+  return ntpSync(ntpServer, gmtOffsetSec, daylightOffsetSec, timeoutMs);
+}
+
+inline bool IOTBOT::ntpIsTimeValid(time_t minEpoch)
+{
+  if (minEpoch <= 0)
+  {
+    minEpoch = _NTP_VALID_EPOCH;
+  }
+  return time(nullptr) >= minEpoch;
+}
+
+inline time_t IOTBOT::ntpGetEpoch()
+{
+  return time(nullptr);
+}
+
+inline String IOTBOT::ntpGetDateTimeString()
+{
+  time_t now = time(nullptr);
+  if (now < _NTP_VALID_EPOCH)
+  {
+    return String("");
+  }
+
+  struct tm tmInfo;
+  localtime_r(&now, &tmInfo);
+
+  char buf[80];
+  snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
+           tmInfo.tm_year + 1900,
+           tmInfo.tm_mon + 1,
+           tmInfo.tm_mday,
+           tmInfo.tm_hour,
+           tmInfo.tm_min,
+           tmInfo.tm_sec);
+  return String(buf);
 }
 
 /*********************************** Servo Angle Control ***********************************
@@ -2178,7 +2767,7 @@ inline void IOTBOT::serverCreateLocalPage(const char *url, const char *WEBPageSc
                     char *buffer = new char[bufferSize];
                     int len = snprintf(buffer, bufferSize, WEBPageHTML, WEBPageScript, WEBPageCSS);
 
-                    if (len >= bufferSize)
+                    if ((size_t)len >= bufferSize)
                     {
                       Serial.println("[ERROR]: Buffer size insufficient, content truncated!");
                     }

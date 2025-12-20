@@ -2,6 +2,20 @@
 
 # CODLAI ERA (New Models)
 
+## [Unreleased]
+### Added
+- NTP time helpers: `ntpSync`, `ntpIsTimeValid`, `ntpGetEpoch`, `ntpGetDateTimeString`.
+- CRC-protected EEPROM record helpers: `eepromCrc32`, `eepromWriteRecord`, `eepromReadRecord`.
+- New advanced example: `IOTBOT_NTP_Time_Advanced_Example.ino` (TR/EN).
+
+## [1.2.4] - 2025-12-20
+### Added
+- Extended EEPROM helpers: `eepromBegin/Commit/End`, byte/int32/uint32/float/string/bytes read-write and region clear.
+- New advanced example: `IOTBOT_EEPROM_Advanced_Example.ino` (TR/EN).
+
+### Changed
+- EEPROM int (legacy) helpers now lazy-initialize EEPROM to reduce common runtime issues.
+
 ## [1.2.1] - 2025-03-09
 ### Fixed
 - PlatformIO yeniden yayını için sürüm numarası artırıldı.

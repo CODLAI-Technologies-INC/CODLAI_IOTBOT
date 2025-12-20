@@ -299,11 +299,47 @@
     *   **EN:** Performs digital writing to the specified pin.
     *   **TR:** Belirtilen pine dijital yazma yapar.
 *   `void eepromWriteInt(int address, int value)`
-    *   **EN:** Writes an integer (int) to EEPROM.
-    *   **TR:** EEPROM'a tam sayı (int) yazar.
+    *   **EN:** Writes a legacy 16-bit (2-byte) integer to EEPROM.
+    *   **TR:** EEPROM'a eski tip 16-bit (2 bayt) tam sayı yazar.
 *   `int eepromReadInt(int address)`
-    *   **EN:** Reads an integer (int) from EEPROM.
-    *   **TR:** EEPROM'dan tam sayı (int) okur.
+    *   **EN:** Reads a legacy 16-bit (2-byte) integer from EEPROM.
+    *   **TR:** EEPROM'dan eski tip 16-bit (2 bayt) tam sayı okur.
+*   `bool eepromBegin(size_t size = 1024)`
+    *   **EN:** Initializes EEPROM emulation.
+    *   **TR:** EEPROM emülasyonunu başlatır.
+*   `bool eepromCommit()` / `void eepromEnd()`
+    *   **EN:** Commits pending changes / ends EEPROM usage.
+    *   **TR:** Bekleyen değişiklikleri yazar / EEPROM kullanımını bitirir.
+*   `bool eepromWriteByte(int address, uint8_t value)` / `uint8_t eepromReadByte(int address, uint8_t defaultValue = 0)`
+    *   **EN:** Single byte read/write.
+    *   **TR:** Tek bayt okuma/yazma.
+*   `bool eepromWriteInt32(int address, int32_t value)` / `int32_t eepromReadInt32(int address, int32_t defaultValue = 0)`
+    *   **EN:** 32-bit integer read/write.
+    *   **TR:** 32-bit tam sayı okuma/yazma.
+*   `bool eepromWriteUInt32(int address, uint32_t value)` / `uint32_t eepromReadUInt32(int address, uint32_t defaultValue = 0)`
+    *   **EN:** 32-bit unsigned integer read/write.
+    *   **TR:** 32-bit işaretsiz tam sayı okuma/yazma.
+*   `bool eepromWriteFloat(int address, float value)` / `float eepromReadFloat(int address, float defaultValue = 0.0f)`
+    *   **EN:** Float read/write.
+    *   **TR:** Float okuma/yazma.
+*   `bool eepromWriteString(int address, const String &value, uint16_t maxLen = 128)` / `String eepromReadString(int address, uint16_t maxLen = 128)`
+    *   **EN:** Stores string as `[uint16 length][bytes...]`.
+    *   **TR:** String'i `[uint16 uzunluk][baytlar...]` formatında saklar.
+*   `bool eepromWriteBytes(int address, const uint8_t *data, size_t len)` / `bool eepromReadBytes(int address, uint8_t *data, size_t len)`
+    *   **EN:** Raw bytes read/write.
+    *   **TR:** Ham bayt okuma/yazma.
+*   `bool eepromClear(int startAddress = 0, size_t length = 0, uint8_t fill = 0xFF)`
+    *   **EN:** Fill a region (or whole EEPROM when length=0).
+    *   **TR:** Bir bölgeyi (veya length=0 ise tüm EEPROM'u) doldurur.
+*   `uint32_t eepromCrc32(const uint8_t *data, size_t len, uint32_t seed = 0xFFFFFFFF)`
+    *   **EN:** CRC32 for raw bytes.
+    *   **TR:** Ham bayt verisi için CRC32.
+*   `bool eepromWriteRecord(int address, const uint8_t *data, uint16_t len, uint16_t version = 1)`
+    *   **EN:** CRC-protected record write.
+    *   **TR:** CRC korumalı record yazma.
+*   `bool eepromReadRecord(int address, uint8_t *out, uint16_t maxLen, uint16_t *outLen = nullptr, uint16_t *outVersion = nullptr)`
+    *   **EN:** CRC-protected record read (validates magic/len/crc).
+    *   **TR:** CRC korumalı record okuma (magic/len/crc kontrolü).
 
 ### Communication / İletişim
 *   **WiFi**:
@@ -319,6 +355,19 @@
     *   `String wifiGetMACAddress()`
         *   **EN:** Returns the device's MAC address.
         *   **TR:** Cihazın MAC adresini döndürür.
+*   **NTP Time / Saat Senkron**:
+    *   `bool ntpBegin(int timezoneHours = 0, const char *ntpServer = "pool.ntp.org", int daylightOffsetHours = 0, uint32_t timeoutMs = 10000)`
+        *   **EN:** Recommended one-call setup for blocks (timezone in hours). Call after WiFi connection.
+        *   **TR:** Bloklar için önerilen tek çağrıda kurulum (saat cinsinden zaman dilimi). WiFi bağlantısından sonra çağırın.
+    *   `bool ntpSync(const char *ntpServer = "pool.ntp.org", long gmtOffsetSec = 0, int daylightOffsetSec = 0, uint32_t timeoutMs = 10000)`
+        *   **EN:** Advanced variant (offsets in seconds).
+        *   **TR:** Gelişmiş kullanım (offset değerleri saniye cinsinden).
+    *   `bool ntpIsTimeValid(time_t minEpoch = 1609459200)`
+        *   **EN:** Returns true if time is valid.
+        *   **TR:** Saat geçerli ise true döndürür.
+    *   `time_t ntpGetEpoch()` / `String ntpGetDateTimeString()`
+        *   **EN:** Returns epoch / formatted datetime string.
+        *   **TR:** Epoch / formatlı tarih-saat string'i döndürür.
 *   **ESP-NOW**:
     *   `void initESPNow()`
         *   **EN:** Initializes the ESP-NOW protocol.

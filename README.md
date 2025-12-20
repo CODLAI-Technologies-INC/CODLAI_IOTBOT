@@ -58,6 +58,9 @@ C++, MicroPython (Text and Block-Based)
 - On-device information sections
 - Programmable with open-source editors
 - Documentation for developing IoT applications
+- Persistent storage helpers (EEPROM): int16/int32/float/string/bytes via `eeprom*` functions
+- CRC-protected EEPROM records (versioned): `eepromWriteRecord/eepromReadRecord`
+- NTP time sync helpers: `ntpSync/ntpGetDateTimeString` (requires WiFi)
 
 ### Cloud Integrations
 - Send instant alerts via Telegram bots with `sendTelegram()`.
@@ -154,6 +157,9 @@ C++, MicroPython (Metin ve Blok Tabanlı)
 - Cihaz üzerinde bilgilendirme bölümleri
 - Açık kaynaklı editörler ile programlayabilme
 - IoT uygulamalar yapmak için gerekli dokümantasyon
+- Kalıcı hafıza yardımcıları (EEPROM): `eeprom*` fonksiyonları ile int16/int32/float/string/bytes
+- CRC korumalı (versiyonlu) EEPROM record: `eepromWriteRecord/eepromReadRecord`
+- NTP saat senkron yardımcıları: `ntpSync/ntpGetDateTimeString` (WiFi gerekir)
 
 ### Bulut Entegrasyonları
 - `sendTelegram()` ile Telegram botlarına anlık bildirimler gönderebilirsiniz.
