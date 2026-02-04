@@ -13,7 +13,7 @@
 
 #include <Arduino.h>
 
-#if defined(ESP32) || defined(ESP8266)
+#if defined(ESP32)
 
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -21,13 +21,7 @@
 #include <time.h>
 #include <Stepper.h>
 #include <LittleFS.h> // Ensure LittleFS is available for dependencies like Firebase
-
-// WiFi header differs by platform
-#if defined(ESP32)
-#include <WiFi.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
-#endif
+#include <WiFi.h> // Ensure WiFi is available for dependencies like Firebase
 
 // Feature dependent includes
 #if defined(USE_SERVO)
@@ -69,12 +63,15 @@
 #include <ArduinoJson.h>
 #endif
 
-#if defined(USE_WIFI)
-#if defined(ESP32)
-#include <WiFi.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
+#if defined(USE_OTA)
+#ifndef USE_WIFI
+#define USE_WIFI
 #endif
+#include <ArduinoOTA.h>
+#endif
+
+#if defined(USE_WIFI)
+#include <WiFi.h>
 #endif
 
 #if defined(USE_ESPNOW)
@@ -405,6 +402,15 @@ public:
   bool wifiConnectionControl();
   String wifiGetMACAddress();
   String wifiGetIPAddress();
+#endif
+
+  /*********************************** OTA (Over-The-Air) ***********************************
+   * TR: WiFi baglantisindan SONRA cagirilmalidir.
+   * EN: Must be called AFTER WiFi connection is established.
+   */
+#if defined(USE_OTA)
+  void otaBegin(const char *hostname = "CODLAI-IOTBOT", const char *password = "1234", uint16_t port = 3232);
+  void otaHandle();
 #endif
 
   /*********************************** NTP Time ***********************************
@@ -2682,6 +2688,63 @@ inline String IOTBOT::wifiGetMACAddress()
 inline String IOTBOT::wifiGetIPAddress()
 {
   return WiFi.localIP().toString();
+}
+#endif
+
+/*********************************** OTA (Over-The-Air) ***********************************/
+#if defined(USE_OTA)
+inline void IOTBOT::otaBegin(const char *hostname, const char *password, uint16_t port)
+{
+  static String otaHost;
+  if (hostname && strlen(hostname) > 0)
+  {
+    otaHost = hostname;
+  }
+  else
+  {
+    String mac = WiFi.macAddress();
+    mac.replace(":", "");
+    otaHost = String("IOTBOT-") + mac;
+  }
+  ArduinoOTA.setHostname(otaHost.c_str());
+
+  if (password && strlen(password) > 0)
+  {
+    ArduinoOTA.setPassword(password);
+  }
+  else
+  {
+    ArduinoOTA.setPassword("1234");
+  }
+
+  ArduinoOTA.setPort(port);
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("[OTA]: Start");
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA]: End");
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    if (total > 0)
+    {
+      Serial.printf("[OTA]: Progress: %u%%\r", (progress * 100) / total);
+    }
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA]: Error[%u]\n", error);
+  });
+
+  ArduinoOTA.begin();
+  Serial.println("[OTA]: Ready");
+}
+
+inline void IOTBOT::otaHandle()
+{
+  ArduinoOTA.handle();
 }
 #endif
 

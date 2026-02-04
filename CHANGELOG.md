@@ -7,6 +7,12 @@
 - NTP time helpers: `ntpSync`, `ntpIsTimeValid`, `ntpGetEpoch`, `ntpGetDateTimeString`.
 - CRC-protected EEPROM record helpers: `eepromCrc32`, `eepromWriteRecord`, `eepromReadRecord`.
 - New advanced example: `IOTBOT_NTP_Time_Advanced_Example.ino` (TR/EN).
+- New advanced example: `IOTBOT_OTA_WiFi_Remote_Info_Example.ino` (TR/EN).
+
+## [1.2.5] - 2026-02-04
+### Added
+- OTA helpers: `otaBegin`, `otaHandle` (requires `USE_OTA`).
+- New advanced example: `IOTBOT_OTA_Update_Example.ino` (TR/EN).
 
 ## [1.2.4] - 2025-12-20
 ### Added

@@ -355,6 +355,13 @@
     *   `String wifiGetMACAddress()`
         *   **EN:** Returns the device's MAC address.
         *   **TR:** Cihazın MAC adresini döndürür.
+*   **OTA (Over-The-Air)**:
+    *   `void otaBegin(const char *hostname = "CODLAI-IOTBOT", const char *password = nullptr, uint16_t port = 3232)`
+        *   **EN:** Starts OTA service (call after WiFi connection).
+        *   **TR:** OTA servisini baslatir (WiFi baglantisindan sonra cagirin).
+    *   `void otaHandle()`
+        *   **EN:** Processes OTA updates. Call continuously in `loop()`.
+        *   **TR:** OTA guncellemelerini isler. `loop()` icinde surekli cagirin.
 *   **NTP Time / Saat Senkron**:
     *   `bool ntpBegin(int timezoneHours = 0, const char *ntpServer = "pool.ntp.org", int daylightOffsetHours = 0, uint32_t timeoutMs = 10000)`
         *   **EN:** Recommended one-call setup for blocks (timezone in hours). Call after WiFi connection.
