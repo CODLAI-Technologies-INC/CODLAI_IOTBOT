@@ -131,7 +131,14 @@ typedef struct {
 #define POT_PIN 36
 #define B3_BUTTON_PIN 0
 #define LCD_ADRESS 0x27
-#define LED_BUILTIN 1
+// IOTBOT kartinda modullerden bagimsiz, sabit bir "durum LED'i" YOK -
+// gorunur LED'ler P1-P5 sinyal hatlarina (IO25/26/27/32/33) paralel
+// baglidir ve o hatta hangi modul takiliysa onun sinyalini yansitir
+// (bkz. digitalWritePin). Bu satir GPIO1'i (ESP32'de varsayilan UART0
+// TXD hatti) "dahili LED" olarak tanimliyordu ama hicbir yerde
+// kullanilmiyordu ve Serial ile cakisma riski tasiyordu; yanlislikla
+// gercek bir LED sanilmasin diye kaldirildi.
+// #define LED_BUILTIN 1
 
 #define IO25 25
 #define IO26 26

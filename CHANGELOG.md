@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-25
+### Removed
+- Kullanilmayan, yanlislikla "kart uzeri LED" sanilabilecek `LED_BUILTIN 1` tanimi kaldirildi (GPIO1 = ESP32'de varsayilan UART0 TXD hatti; hicbir yerde kullanilmiyordu). IOTBOT'ta modullerden bagimsiz sabit bir LED yok - gorunur LED'ler P1-P5 sinyal hatlarina paralel baglidir, bkz. `digitalWritePin`.
+
 ## [1.3.0] - 2026-09-25
 ### Added
 - NTP time helpers: `ntpSync`, `ntpIsTimeValid`, `ntpGetEpoch`, `ntpGetDateTimeString`.
