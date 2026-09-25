@@ -24,6 +24,8 @@ lcdSetCursor	KEYWORD2
 lcdWriteMid	KEYWORD2
 lcdWrite	KEYWORD2
 lcdWriteCR	KEYWORD2
+lcdWriteCornerArrow	KEYWORD2
+lcdScrollText	KEYWORD2
 lcdClear	KEYWORD2
 lcdtest	KEYWORD2
 lcdShowLoading	KEYWORD2
@@ -97,6 +99,7 @@ ntpIsTimeValid	KEYWORD2
 ntpGetEpoch	KEYWORD2
 ntpGetDateTimeString	KEYWORD2
 moduleServoGoAngle	KEYWORD2
+moduleServoDetach	KEYWORD2
 moduleDhtTempReadC	KEYWORD2
 moduleDthFeelingTempC	KEYWORD2
 moduleDhtTempReadF	KEYWORD2

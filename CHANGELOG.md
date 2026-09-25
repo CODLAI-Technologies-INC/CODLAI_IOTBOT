@@ -3,11 +3,26 @@
 # CODLAI ERA (New Models)
 
 ## [Unreleased]
+
+## [1.3.0] - 2026-09-25
 ### Added
 - NTP time helpers: `ntpSync`, `ntpIsTimeValid`, `ntpGetEpoch`, `ntpGetDateTimeString`.
 - CRC-protected EEPROM record helpers: `eepromCrc32`, `eepromWriteRecord`, `eepromReadRecord`.
 - New advanced example: `IOTBOT_NTP_Time_Advanced_Example.ino` (TR/EN).
 - New advanced example: `IOTBOT_OTA_WiFi_Remote_Info_Example.ino` (TR/EN).
+- `lcdWriteCornerArrow`: bir hucreye capraz (↘) ok karakteri yazar; P6 gibi kartin bir kosesindeki soketin yerini gostermek icin.
+- `lcdScrollText`: 20 kolonu asan bir metni kaydirarak gosterir.
+- `moduleServoDetach`: servoya ayrilan LEDC kanalini/pini serbest birakir; ayni pin baska bir modulde (DC motor, step motor, akilli LED) kullanilmadan once cagrilmalidir.
+- Yeni gelistirilmis ornek: `IOTBOT_Musteri_Karsilama_V2_Sensor_Kesif.cpp` - P1-P6 soketlerini, tum sensor/aktuator modullerini ve donanim turunu adim adim ogreten interaktif egitim akisi (encoder ile ileri, joystick butonu ile bir onceki adima geri).
+
+### Fixed
+- **Encoder okuma**: A/B pinlerinin Gray-kod gecisleri artik dogru sekilde takip ediliyor; onceki surum sadece tek bir pinin kenarina bakiyordu ve bazi donuslerde adim kacirabiliyor ya da ters sayabiliyordu. A/B pinleri de `INPUT_PULLUP` yapildi.
+- **DC motor sola donme**: `moduleDCMotorGOCounterClockWise` fonksiyonundaki PWM/yon pin ataması duzeltildi - onceki surumde bu yonde motor hic donmuyordu (IO27 hep PWM aliyor, IO26 sadece HIGH/LOW oluyordu; simdi yon her zaman "diger" pin LOW tutularak PWM'in verildigi pinle belirleniyor).
+- **B1/B2 butonu ve joystick X ekseni (ADC2) guvenilirligi**: WiFi/Bluetooth kullanmayan sketch'lerde `begin()` artik WiFi radyosunu kapatiyor; ESP32'nin bilinen ADC2 kisitlamasi (radyo acikken guvenilmez okuma) boylece ortadan kalkiyor.
+- **Matris buton okumasi**: tek anlik ADC okumasi yerine 5 orneğin ortalamasi aliniyor; 4 ve 5 numarali tuslar arasindaki dar/asimetrik esik bandi genisletildi - komsu tuslarin birbirine karismasi onemli olcude azaldi.
+- **Servo hareket araligi**: puls genisligi 1000-2000us'den (ARMBOT/CARBOT haric) 500-2500us'e genisletildi - bazi servolar kenar acilarda (0/180) net hareket uretmiyordu. Ayrica sinyal pini artik `GPIO_DRIVE_CAP_3` ile maksimum surus gucune ayarlaniyor (P1-P6 ortak hattindaki koruma diyotunun gerilim dususunu telafi eder).
+- **Akilli LED bellek sizintisi**: `moduleSmartLEDPrepare` art arda cagrildiginda onceki `Adafruit_NeoPixel` nesnesi artik serbest birakiliyor.
+- **LCD uzun metin tasmasi**: `lcdWriteMid` artik 20 kolonu asan satirlari kesiyor; HD44780'in DDRAM adresleme sarmasindan kaynakli ekran kalintisi onlendi.
 
 ## [1.2.5] - 2026-02-04
 ### Added

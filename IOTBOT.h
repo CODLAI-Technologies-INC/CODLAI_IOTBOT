@@ -26,6 +26,7 @@
 // Feature dependent includes
 #if defined(USE_SERVO)
 #include <ESP32Servo.h>
+#include <driver/gpio.h> // gpio_set_drive_capability - zayif sinyal hatlarinda (bkz. moduleServoGoAngle) yardimci
 #endif
 
 #if defined(USE_DHT)
@@ -118,8 +119,8 @@ typedef struct {
 
 // Pins
 #define JOYSTICK_Y_PIN 34
-#define JOYSTICK_X_PIN 35  //DEĞİŞti  15 olacaktı.
-#define JOYSTICK_BUTTON_PIN 15//DEĞİŞti  35 olacaktı.
+#define JOYSTICK_X_PIN 15  //DEĞİŞti  15 olacaktı.
+#define JOYSTICK_BUTTON_PIN 35//DEĞİŞti  35 olacaktı.
 #define ENCODER_A_PIN 16
 #define ENCODER_B_PIN 17
 #define ENCODER_BUTTON_PIN 13
@@ -180,6 +181,9 @@ public:
   void lcdWriteCR(int col, int row, int value);
   void lcdWriteCR(int col, int row, float value);
   void lcdWriteCR(int col, int row, bool value);
+  void lcdWriteFixed(int row, const char *text);
+  void lcdWriteCornerArrow(int col, int row); // Soket yerini gosteren capraz (sag-alt) ok
+  void lcdScrollText(int row, const char *text, uint16_t durationMs = 3000, uint16_t stepDelayMs = 150);
   void lcdWrite(const char *text);
   void lcdClear();
   void lcdtest();
@@ -323,6 +327,7 @@ public:
    */
 #if defined(USE_SERVO)
   void moduleServoGoAngle(int pin, int angle, int acceleration);
+  void moduleServoDetach();
 #endif
 
   /*********************************** DHT Sensor ***********************************
@@ -610,6 +615,9 @@ inline IOTBOT::IOTBOT() : lcd(LCD_ADRESS, 20, 4)
 
 /*********************************** Helper Functions ***********************************/
 inline void IOTBOT::createTurkishChars() {
+  // Sag-alt kosesine dogru capraz bir ok: P6 gibi kartin fiziksel bir
+  // kosesindeki soketin yerini gostermek icin kullanilir.
+  byte char_arrow[8] = {0x00,0x01,0x03,0x05,0x09,0x11,0x1F,0x00}; // ↘
   byte char_ch[8] = {0x00,0x0E,0x10,0x10,0x11,0x0E,0x04,0x00}; // ç
   byte char_g[8]  = {0x0E,0x00,0x0F,0x11,0x0F,0x01,0x0E,0x00}; // ğ
   byte char_i[8]  = {0x00,0x00,0x0C,0x04,0x04,0x04,0x0E,0x00}; // ı
@@ -619,6 +627,7 @@ inline void IOTBOT::createTurkishChars() {
   byte char_I[8]  = {0x04,0x00,0x0C,0x04,0x04,0x04,0x0E,0x00}; // İ
   // byte char_C[8]  = {0x0E,0x11,0x10,0x10,0x11,0x0E,0x04,0x00}; // Ç (Not used to save space/avoid 0x00)
 
+  lcd.createChar(0, char_arrow);
   lcd.createChar(1, char_ch);
   lcd.createChar(2, char_g);
   lcd.createChar(3, char_i);
@@ -651,11 +660,18 @@ inline String IOTBOT::convertTR(String text) {
 /*********************************** BEGIN ***********************************/
 inline void IOTBOT::begin()
 {
+#if !defined(USE_WIFI) && !defined(USE_ESPNOW) && !defined(USE_BLUETOOTH)
+  // ADC2 pinleri (B1/B2 butonu, joystick X ekseni gibi) WiFi/BT radyosu
+  // acikken guvenilir okunamaz (ESP32'nin bilinen bir sinirlamasi).
+  // Bu sketch WiFi kullanmiyorsa radyoyu tamamen kapatip ADC2'yi serbest
+  // birakiyoruz.
+  WiFi.mode(WIFI_OFF);
+#endif
   pinMode(JOYSTICK_Y_PIN, INPUT);
   pinMode(JOYSTICK_X_PIN, INPUT);
   pinMode(JOYSTICK_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(ENCODER_A_PIN, INPUT);
-  pinMode(ENCODER_B_PIN, INPUT);
+  pinMode(ENCODER_A_PIN, INPUT_PULLUP);
+  pinMode(ENCODER_B_PIN, INPUT_PULLUP);
   pinMode(ENCODER_BUTTON_PIN, INPUT_PULLUP);
   pinMode(B1_AND_B2_BUTTON_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
@@ -851,6 +867,13 @@ inline void IOTBOT::lcdWriteMid(const char *line1, const char *line2, const char
   // Define the number of columns in the LCD (e.g., 20 for a 20x4 LCD display)
   const int lcdColumns = 20;
 
+  // 20 kolonu asan bir metin, HD44780'in DDRAM adresleme sarmasi yuzunden
+  // bir sonraki satira tasip kalinti birakir; once kesip guvenli hale getir.
+  if (s1.length() > (unsigned)lcdColumns) s1 = s1.substring(0, lcdColumns);
+  if (s2.length() > (unsigned)lcdColumns) s2 = s2.substring(0, lcdColumns);
+  if (s3.length() > (unsigned)lcdColumns) s3 = s3.substring(0, lcdColumns);
+  if (s4.length() > (unsigned)lcdColumns) s4 = s4.substring(0, lcdColumns);
+
   // Calculate the length of each line
   int len1 = s1.length();
   int len2 = s2.length();
@@ -951,6 +974,68 @@ inline void IOTBOT::lcdWriteCR(int col, int row, bool value)
     return;
   lcd.setCursor(col, row);
   lcd.print(value ? "true" : "false");
+}
+
+inline void IOTBOT::lcdWriteFixed(int row, const char *text)
+{
+  if (row < 0 || row >= 4 || text == nullptr)
+    return;
+
+  lcd.setCursor(0, row);
+  for (int col = 0; col < 20; ++col)
+  {
+    char value = text[col];
+    lcd.write(value == '\0' ? ' ' : value);
+  }
+}
+
+// Kartin fiziksel bir kosesindeki (ornegin P6 soketi) yerini gostermek
+// icin, verilen hucreye capraz-asagi-saga (↘) ozel karakterini yazar.
+inline void IOTBOT::lcdWriteCornerArrow(int col, int row)
+{
+  if (row < 0 || row >= 4 || col < 0 || col >= 20)
+    return;
+  lcd.setCursor(col, row);
+  lcd.write((uint8_t)0);
+}
+
+// Metni sagdan sola kaydirarak gosterir; 20 kolonu asan basliklar/mesajlar
+// icin. Metin 20 kolondan kisaysa kaymadan sabit yazilir. Blocking bir
+// fonksiyondur (delay ile calisir), lcdShowLoading/lcdShowStatus ile ayni
+// kullanim tarzindadir.
+inline void IOTBOT::lcdScrollText(int row, const char *text, uint16_t durationMs, uint16_t stepDelayMs)
+{
+  if (row < 0 || row >= 4 || text == nullptr)
+    return;
+
+  const uint16_t textLength = strlen(text);
+  if (textLength <= 20)
+  {
+    lcdWriteFixed(row, text);
+    delay(durationMs);
+    return;
+  }
+
+  const uint16_t cycleLength = textLength + 20;
+  char line[21];
+  uint16_t offset = 0;
+  uint32_t elapsed = 0;
+  while (elapsed < durationMs)
+  {
+    for (uint8_t col = 0; col < 20; ++col)
+    {
+      uint16_t sourceIndex = offset + col;
+      if (sourceIndex >= cycleLength)
+        sourceIndex -= cycleLength;
+      line[col] = (sourceIndex < textLength) ? text[sourceIndex] : ' ';
+    }
+    line[20] = '\0';
+    lcd.setCursor(0, row);
+    lcd.print(line);
+    offset = (offset + 1) % cycleLength;
+    delay(stepDelayMs);
+    elapsed += stepDelayMs;
+  }
 }
 
 inline void IOTBOT::lcdClear()
@@ -1270,21 +1355,37 @@ inline int IOTBOT::encoderRead()
   // Read current states of A and B pins
   int currentStateA = digitalRead(ENCODER_A_PIN);
   int currentStateB = digitalRead(ENCODER_B_PIN);
+  uint8_t currentState = (currentStateA << 1) | currentStateB;
+  uint8_t previousState = (lastStateA << 1) | lastStateB;
 
-  // Check if A pin state has changed
-  if (currentStateA != lastStateA)
+  if (currentState != previousState)
   {
-    if (currentStateA == HIGH)
+    // Sadece Gray-kod dizisindeki bitisik (tek adimlik) gecisler kabul
+    // edilir; 00<->11 gibi fiziksel olarak imkansiz atlamalar gurultu
+    // sayilip yok sayilir. Bu, tek bir A/B hattindaki gurultuye tek bir
+    // pin kenarina bakan eski yonteme gore cok daha dayaniklidir.
+    int8_t direction = 0;
+    if ((previousState == 0 && currentState == 1) ||
+        (previousState == 1 && currentState == 3) ||
+        (previousState == 3 && currentState == 2) ||
+        (previousState == 2 && currentState == 0))
     {
-      // Determine direction based on B pin state
-      if (currentStateB == LOW)
-      {
-        encoderCount--; // Counterclockwise
-      }
-      else
-      {
-        encoderCount++; // Clockwise
-      }
+      direction = 1;
+    }
+    else if ((previousState == 0 && currentState == 2) ||
+             (previousState == 2 && currentState == 3) ||
+             (previousState == 3 && currentState == 1) ||
+             (previousState == 1 && currentState == 0))
+    {
+      direction = -1;
+    }
+
+    if (direction != 0)
+    {
+      // Bazi encoder modullerinde bir detent, Gray kodunun tam 4 ceyrek
+      // adimini uretmiyor; en duyarli/guvenilir sonuc icin gecerli her
+      // adim hemen sayilir (biriktirme yapilmaz).
+      encoderCount += direction;
     }
   }
 
@@ -1406,14 +1507,18 @@ inline void IOTBOT::moduleDCMotorGOClockWise(int speed)
  */
 inline void IOTBOT::moduleDCMotorGOCounterClockWise(int speed)
 {
-  pinMode(IO26, OUTPUT); // Direction control pin
-  pinMode(IO27, OUTPUT); // PWM control pin
+  pinMode(IO26, OUTPUT); // PWM control pin (reversed for this direction)
+  pinMode(IO27, OUTPUT); // Direction control pin (reversed for this direction)
 
   // Map speed from 0-100 to 0-255 for PWM
   int pwmValue = map(speed, 0, 100, 0, 255);
 
-  digitalWrite(IO26, pwmValue); // Set direction to counterclockwise
-  analogWrite(IO27, LOW);       // Set motor speed using PWM
+  // Bu surucu iki pinli bir H-bridge: yon her zaman "diger" pini LOW tutup
+  // PWM'i "bu yone ozel" pine vererek belirlenir. Eskiden IO27 hep PWM,
+  // IO26 sadece HIGH/LOW aliyordu - bu da ters yonde IO27'nin hicbir zaman
+  // LOW'a inmemesine ve motorun sola donmemesine yol aciyordu.
+  digitalWrite(IO27, LOW);     // Set direction to counterclockwise
+  analogWrite(IO26, pwmValue); // Set motor speed using PWM
 }
 
 /*********************************** DC Motor Stop ***********************************
@@ -1478,6 +1583,7 @@ inline bool IOTBOT::moduleMagneticRead(int pin)
 {
   // Configure pins
   pinMode(pin, INPUT);
+  // Gercek modul aktif-LOW: manyetik alan algilandiginda cikis LOW'a duser.
   return !digitalRead(pin);
 }
 
@@ -1494,7 +1600,18 @@ inline int IOTBOT::moduleMatrisButtonNumberRead(int pin)
 {
   // Configure pins
   pinMode(pin, INPUT);
-  int value = analogRead(pin);
+  // Tusler 2-5 arasi cok dar bir ADC bandina (2000-2500) sikisik; tek bir
+  // anlik okuma gurultu yuzunden komsu tusun (ozellikle 4/5'in) bandina
+  // kayabiliyordu. Birkac orneği ortalayip gurultuyu bastiriyoruz.
+  long sum = 0;
+  const uint8_t samples = 5;
+  for (uint8_t i = 0; i < samples; ++i)
+  {
+    sum += analogRead(pin);
+    delayMicroseconds(200);
+  }
+  int value = sum / samples;
+
   if (value > 4000)
   {
     return 1;
@@ -1507,11 +1624,14 @@ inline int IOTBOT::moduleMatrisButtonNumberRead(int pin)
   {
     return 3;
   }
-  else if (value > 2150 && value < 2210)
+  // 3/4/5 bantlari arasindaki sinirlar, komsu bantlarin merkezleri
+  // (~2280, ~2180, ~2075) arasindaki orta noktalara tasindi; boylece 4 ve 5
+  // arasindaki asimetrik/dar band genisletildi.
+  else if (value > 2125 && value <= 2210)
   {
     return 4;
   }
-  else if (value > 2000 && value < 2150)
+  else if (value >= 2000 && value <= 2125)
   {
     return 5;
   }
@@ -2330,7 +2450,20 @@ inline void IOTBOT::moduleServoGoAngle(int pin, int angle, int acceleration)
   // Attach the servo to the specified pin if not already attached
   if (!servoModule.attached())
   {
-    servoModule.attach(pin, 1000, 2000); // Sadece bağlı değilse ata
+#if defined(USE_ARMBOT) || defined(USE_CARBOT)
+    // ARMBOT/CARBOT ile birlikte kullanilan kitler icin ayarlanmis eski/dar
+    // puls araligi - bu kombinasyonda degistirmiyoruz.
+    servoModule.attach(pin, 1000, 2000);
+#else
+    // 500-2500us: cogu hobi servosunun tam 0-180 derece araligina karsilik
+    // gelen standart puls genisligi (eski 1000-2000 araligi daha dar ve
+    // bazi servolarda kenar degerlerde net hareket uretmiyordu).
+    servoModule.attach(pin, 500, 2500);
+#endif
+    // Bu pin, geri besleme onleyici bir diyot (P1-P6 ortak sinyal hatti)
+    // uzerinden gidiyor olabilir; diyotun gerilim dususunu telafi etmek
+    // icin GPIO'yu maksimum surus gucune ayarliyoruz.
+    gpio_set_drive_capability((gpio_num_t)pin, GPIO_DRIVE_CAP_3);
   }
 
   // Ensure angle is within valid bounds (0 to 180 degrees)
@@ -2352,6 +2485,17 @@ inline void IOTBOT::moduleServoGoAngle(int pin, int angle, int acceleration)
 
   // Ensure the final angle is set correctly
   servoModule.write(angle);
+}
+
+// Servoya ayrilan LEDC kanalini/pini serbest birakir. Ayni pini baska bir
+// modul (DC motor PWM'i, step motor, akilli LED vb.) kullanacaksa, servo
+// biraktirilmadan o pine gecmek cakismaya yol acabilir.
+inline void IOTBOT::moduleServoDetach()
+{
+  if (servoModule.attached())
+  {
+    servoModule.detach();
+  }
 }
 #endif
 
@@ -2458,6 +2602,13 @@ inline void IOTBOT::extendSmartLEDFill(int startLED, int endLED, int red, int gr
 
 inline void IOTBOT::moduleSmartLEDPrepare(int pin)
 {
+  // Onceki hazirlamadan kalan nesneyi serbest birak - aksi halde her
+  // cagri bellek sizdirir ve eski pine bagli nesne askida kalir.
+  if (pixels)
+  {
+    delete pixels;
+    pixels = nullptr;
+  }
   pixels = new Adafruit_NeoPixel(3, pin, NEO_GRB + NEO_KHZ800);
   pixels->begin();
   pixels->show(); // Clear all LEDs
