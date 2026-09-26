@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-26
+### Changed
+- **Flash boyutu ciddi olcude kucultuldu** (bir egitim uygulamasinda 888KB -> 434KB, ~%51): `Stepper.h` artik sadece `USE_STEP_MOTOR` tanimliyken, `LittleFS.h` artik sadece `USE_FIREBASE` tanimliyken include ediliyor; onceden kosulsuz include edilen ikinci (fazladan) `WiFi.h` satiri kaldirildi (asagidaki `USE_WIFI` korumali kopyasi zaten yeterli). `moduleStepMotorMotion()` de artik `USE_STEP_MOTOR` tanimlanmadan kullanilamiyor - step motor kullanan sketch'ler `#include <IOTBOT.h>` satirindan ONCE `#define USE_STEP_MOTOR` eklemeli.
+- `begin()` icindeki `WiFi.mode(WIFI_OFF)` cagrisi kaldirildi: Arduino-ESP32'de WiFi radyosu hicbir WiFi/ESPNOW/Bluetooth API'si cagrilmadan zaten baslatilmiyor, bu cagri sadece WiFi kutuphanesini WiFi kullanmayan sketch'lere de linkleyip boyutu sisiriyordu. **Donanim notu**: B1/B2 butonu ve joystick X ekseni ADC2 uzerinden okunuyor; bu degisiklik sonrasi donanimda dogrulanmali, sorun gorulursse blok geri eklenebilir.
+
 ## [1.3.1] - 2026-09-25
 ### Removed
 - Kullanilmayan, yanlislikla "kart uzeri LED" sanilabilecek `LED_BUILTIN 1` tanimi kaldirildi (GPIO1 = ESP32'de varsayilan UART0 TXD hatti; hicbir yerde kullanilmiyordu). IOTBOT'ta modullerden bagimsiz sabit bir LED yok - gorunur LED'ler P1-P5 sinyal hatlarina paralel baglidir, bkz. `digitalWritePin`.

@@ -19,9 +19,14 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 #include <time.h>
+
+#if defined(USE_STEP_MOTOR)
 #include <Stepper.h>
-#include <LittleFS.h> // Ensure LittleFS is available for dependencies like Firebase
-#include <WiFi.h> // Ensure WiFi is available for dependencies like Firebase
+#endif
+
+#if defined(USE_FIREBASE)
+#include <LittleFS.h> // Firebase_ESP_Client bunu bekliyor
+#endif
 
 // Feature dependent includes
 #if defined(USE_SERVO)
@@ -234,7 +239,9 @@ public:
 
   /*********************************** DRIVER AND MOTORS ***********************************
    */
+#if defined(USE_STEP_MOTOR)
   void moduleStepMotorMotion(int step, bool rotation, int accelometer, int speed);
+#endif
   void moduleDCMotorGOClockWise(int speed);
   void moduleDCMotorGOCounterClockWise(int speed);
   void moduleDCMotorStop();
@@ -667,13 +674,15 @@ inline String IOTBOT::convertTR(String text) {
 /*********************************** BEGIN ***********************************/
 inline void IOTBOT::begin()
 {
-#if !defined(USE_WIFI) && !defined(USE_ESPNOW) && !defined(USE_BLUETOOTH)
-  // ADC2 pinleri (B1/B2 butonu, joystick X ekseni gibi) WiFi/BT radyosu
-  // acikken guvenilir okunamaz (ESP32'nin bilinen bir sinirlamasi).
-  // Bu sketch WiFi kullanmiyorsa radyoyu tamamen kapatip ADC2'yi serbest
-  // birakiyoruz.
-  WiFi.mode(WIFI_OFF);
-#endif
+  // Onceden burada, WiFi kullanilmayan sketch'lerde ADC2 guvenligi icin
+  // WiFi.mode(WIFI_OFF) cagriliyordu. Ancak Arduino-ESP32'de WiFi radyosu
+  // hicbir WiFi/ESPNOW/Bluetooth API'si cagrilmadan zaten baslatilmiyor;
+  // bu cagri sadece WiFi kutuphanesini HER derlemeye (WiFi kullanmayanlar
+  // dahil) linkleyip flash boyutunu ciddi sekilde sisiriyordu. WiFi.h
+  // artik sadece USE_WIFI (ve ona bagli USE_SERVER/USE_FIREBASE/USE_OTA/
+  // USE_ESPNOW/vb.) tanimliyken include ediliyor; bu yuzden cagri kaldirildi.
+  // NOT: B1/B2 butonu ve joystick X ekseni (ADC2) donanimda dogrulanmali -
+  // sorun cikarsa bu blok geri eklenip WiFi.h o dal icin de include edilmeli.
   pinMode(JOYSTICK_Y_PIN, INPUT);
   pinMode(JOYSTICK_X_PIN, INPUT);
   pinMode(JOYSTICK_BUTTON_PIN, INPUT_PULLUP);
@@ -1469,6 +1478,7 @@ inline void IOTBOT::encodertest()
 
 /*********************************** DRIVER AND MOTORS ***********************************
  */
+#if defined(USE_STEP_MOTOR)
 /*********************************** Stepper Motor Motion ***********************************
  * Controls the stepper motor.
  * rotation: True for clockwise, false for counterclockwise.
@@ -1491,6 +1501,7 @@ inline void IOTBOT::moduleStepMotorMotion(int step, bool rotation, int accelomet
     stepMotor.step(-accelometer); // Move backward (counterclockwise)
   }
 }
+#endif
 
 /*********************************** DC Motor Clockwise ***********************************
  * Rotates the DC motor clockwise at the specified speed.
