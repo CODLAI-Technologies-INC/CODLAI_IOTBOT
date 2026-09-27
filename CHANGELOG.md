@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-09-27
+### Fixed
+- `moduleDCMotorGOClockWise(speed)` / `moduleDCMotorGOCounterClockWise(speed)`: fonksiyonun kendi belgelemesi `speed`'in 0-255 araliginda oldugunu soylerken, govde icinde yanlislikla `map(speed, 0, 100, 0, 255)` ile tekrar 0-255'e olceklendiriliyordu. Bu yuzden ornegin 200 gonderildiginde PWM degeri 510'a tasip motor pratikte her zaman tam hizda calisiyordu. `map()` kaldirildi, artik dogrudan `constrain(speed, 0, 255)` kullaniliyor - fonksiyonun belgelenen sozlesmesiyle artik tutarli. (Editor ajaninin derleme/blok entegrasyonu testinde bulundu.)
+
 ## [1.6.0] - 2026-09-27
 ### Added
 - Yeni "3-Projects" ornek klasoru: kablosuz (ESP-NOW/WiFi) haberlesme gerektirmeyen, tek basina calisan, gercek hayattan basit proje ornekleri.

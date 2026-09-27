@@ -1533,8 +1533,14 @@ inline void IOTBOT::moduleDCMotorGOClockWise(int speed)
   pinMode(IO26, OUTPUT); // Direction control pin
   pinMode(IO27, OUTPUT); // PWM control pin
 
-  // Map speed from 0-100 to 0-255 for PWM
-  int pwmValue = map(speed, 0, 100, 0, 255);
+  // speed zaten 0-255 araliginda (fonksiyonun kendi tanimina gore) - once
+  // yanlislikla 0-100 sanilip tekrar 0-255'e olceklendiriliyordu (map),
+  // bu da 200 gibi normal bir degeri 510'a tasiyip motoru hep tam hizda
+  // calistiriyordu. / speed is already in the 0-255 range (per this
+  // function's own contract) - it used to be incorrectly re-scaled from
+  // an assumed 0-100 range (map), turning a normal value like 200 into
+  // 510 and making the motor always run at full speed.
+  int pwmValue = constrain(speed, 0, 255);
 
   digitalWrite(IO26, LOW);     // Set direction to clockwise
   analogWrite(IO27, pwmValue); // Set motor speed using PWM
@@ -1549,8 +1555,9 @@ inline void IOTBOT::moduleDCMotorGOCounterClockWise(int speed)
   pinMode(IO26, OUTPUT); // PWM control pin (reversed for this direction)
   pinMode(IO27, OUTPUT); // Direction control pin (reversed for this direction)
 
-  // Map speed from 0-100 to 0-255 for PWM
-  int pwmValue = map(speed, 0, 100, 0, 255);
+  // speed zaten 0-255 araliginda, bkz. moduleDCMotorGOClockWise. / speed is
+  // already in the 0-255 range, see moduleDCMotorGOClockWise.
+  int pwmValue = constrain(speed, 0, 255);
 
   // Bu surucu iki pinli bir H-bridge: yon her zaman "diger" pini LOW tutup
   // PWM'i "bu yone ozel" pine vererek belirlenir. Eskiden IO27 hep PWM,
