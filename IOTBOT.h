@@ -121,12 +121,14 @@
 #ifndef CODLAI_ESPNOW_MESSAGE_DEFINED
 #define CODLAI_ESPNOW_MESSAGE_DEFINED
 typedef struct {
-  uint8_t deviceType; // 1 = Armbot
+  uint8_t deviceType; // 1=Armbot, 2=Carbot, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji
   int axis1;
   int axis2;
   int axis3;
   int gripper;
   uint8_t action; // 0=None, 1=Horn, 2=Note
+  char text[32];  // espNowSendText: metin icerigi / espNowSendNumber: sayinin adi (name)
+  float value;    // espNowSendNumber: sayinin degeri (value)
 } CodlaiESPNowMessage;
 #endif
 
@@ -186,6 +188,9 @@ public:
   void buzzerStop();
   void buzzerSoundIntro();
   void buzzertest();
+  void buzzerPlayNote(const char *note, int durationMs); // "C4", "D#5" gibi nota adlariyla cal / play by note name like "C4", "D#5"
+  void buzzerPlayMelody(int melodyId);                   // Hazir melodi cal (1-5) / play a preset melody (1-5)
+  void buzzerSetTempo(int bpm);                          // Melodi tempo (BPM) / melody tempo (BPM)
 
   /*********************************** LCD SCREEN ***********************************
    */
@@ -374,6 +379,11 @@ public:
   void moduleSmartLEDTheaterChaseEffect(uint32_t color, int wait); // Theater chase effect
   void moduleSmartLEDColorWipeEffect(uint32_t color, int wait);    // Color wipe effect
   uint32_t getColor(int red, int green, int blue);                 // Helper function for creating colors
+  void moduleSmartLEDFill(int red, int green, int blue);           // Tum LED'leri tek renge boya / fill all LEDs with one color
+  void moduleSmartLEDClear();                                      // Tum LED'leri sondur / turn all LEDs off
+  void moduleSmartLEDSetBrightness(int brightness);                // Parlaklik ayarla (0-255) / set brightness (0-255)
+  void moduleSmartLEDBlink(int red, int green, int blue, int times, int ms); // Yanip sondur / blink on/off
+  void moduleSmartLEDBreathe(int red, int green, int blue, int ms);          // "Nefes alma" efekti / breathing effect
 #endif
 
   /*********************************** IR Sensor ***********************************
@@ -498,6 +508,16 @@ public:
           }
       });
   }
+
+  // --- Basit ESP-NOW mesajlasma (cocuklar/blok kod icin) ---
+  // Simple ESP-NOW messaging (for children / block-based code)
+  bool espNowBegin(int channel = 1);
+  void espNowSendText(const String &text);
+  void espNowSendNumber(const String &name, float value);
+  bool espNowAvailable();
+  String espNowReadText();
+  String espNowReadName();
+  float espNowReadNumber();
 #endif
 
   /*********************************** Telegram ***********************************
@@ -567,6 +587,9 @@ private:
   size_t _eepromSize = 0;
 
   bool _eepromEnsure(size_t minSize);
+
+  int _bpm = 120; // buzzerPlayMelody icin tempo (vurus/dakika) / tempo for buzzerPlayMelody (beats per minute)
+  int _noteToFrequency(const char *note);
 
   void createTurkishChars();
   String convertTR(String text);
@@ -887,6 +910,127 @@ inline void IOTBOT::buzzertest()
   lcd.setCursor(6, 3);
   lcd.print(" Silent.");
   delay(500);
+}
+
+// Nota adini (ornegin "C4", "D#5", "Bb3") frekansa cevirir; taninmayan/bos
+// bir isim 0 dondurur (buzzerPlayNote bunu "sessiz mola" olarak yorumlar).
+// Converts a note name (e.g. "C4", "D#5", "Bb3") to a frequency; an
+// unrecognized/empty name returns 0 (buzzerPlayNote treats this as a
+// silent rest).
+inline int IOTBOT::_noteToFrequency(const char *note)
+{
+  if (!note || !note[0])
+    return 0;
+
+  static const int semitoneFromC[7] = {9, 11, 0, 2, 4, 5, 7}; // A,B,C,D,E,F,G
+  char letter = toupper(note[0]);
+  if (letter < 'A' || letter > 'G')
+    return 0;
+
+  int semitone = semitoneFromC[letter - 'A'];
+  int pos = 1;
+  if (note[pos] == '#')
+  {
+    semitone++;
+    pos++;
+  }
+  else if (note[pos] == 'b' || note[pos] == 'B')
+  {
+    semitone--;
+    pos++;
+  }
+
+  int octave = (note[pos] != '\0') ? atoi(&note[pos]) : 4;
+  int semitonesFromA4 = (octave - 4) * 12 + (semitone - 9); // A'nin C'ye gore yari ton konumu 9
+  return (int)round(440.0 * pow(2.0, semitonesFromA4 / 12.0));
+}
+
+inline void IOTBOT::buzzerPlayNote(const char *note, int durationMs)
+{
+  int freq = _noteToFrequency(note);
+  if (freq > 0)
+  {
+    buzzerPlayTone(freq, durationMs);
+  }
+  else
+  {
+    delay(durationMs); // Taninmayan/bos nota = sessiz mola (rest) / unrecognized/empty note = silent rest
+  }
+}
+
+inline void IOTBOT::buzzerSetTempo(int bpm)
+{
+  _bpm = constrain(bpm, 20, 300);
+}
+
+inline void IOTBOT::buzzerPlayMelody(int melodyId)
+{
+  struct MelodyNote
+  {
+    const char *note;
+    float beats; // 1 = ceyrek nota (quarter note)
+  };
+
+  // NOT: Bunlar buzzer icin kisaltilmis/basitlestirilmis duzenlemelerdir,
+  // notaya birebir sadik degildir. / NOTE: these are shortened/simplified
+  // arrangements for the buzzer, not note-for-note transcriptions.
+  static const MelodyNote melodyHappyBirthday[] = {
+      {"C4", 0.75}, {"C4", 0.25}, {"D4", 1}, {"C4", 1}, {"F4", 1}, {"E4", 2},
+      {"C4", 0.75}, {"C4", 0.25}, {"D4", 1}, {"C4", 1}, {"G4", 1}, {"F4", 2},
+      {"C4", 0.75}, {"C4", 0.25}, {"C5", 1}, {"A4", 1}, {"F4", 1}, {"E4", 1}, {"D4", 1},
+      {"A#4", 0.75}, {"A#4", 0.25}, {"A4", 1}, {"F4", 1}, {"G4", 1}, {"F4", 2}};
+
+  static const MelodyNote melodyTwinkleTwinkle[] = {
+      {"C4", 1}, {"C4", 1}, {"G4", 1}, {"G4", 1}, {"A4", 1}, {"A4", 1}, {"G4", 2},
+      {"F4", 1}, {"F4", 1}, {"E4", 1}, {"E4", 1}, {"D4", 1}, {"D4", 1}, {"C4", 2}};
+
+  static const MelodyNote melodyJingleBells[] = {
+      {"E4", 1}, {"E4", 1}, {"E4", 2}, {"E4", 1}, {"E4", 1}, {"E4", 2}, {"E4", 1}, {"G4", 1}, {"C4", 1.5}, {"D4", 0.5}, {"E4", 4}};
+
+  static const MelodyNote melodyStartup[] = {
+      {"C4", 0.5}, {"E4", 0.5}, {"G4", 0.5}, {"C5", 1}};
+
+  // "Daha Dun Annemizin": DOGRULANMAMIS/basitlestirilmis yer tutucu -
+  // eger bu sarkinin dogru notalari onemliyse lutfen dogrulayip
+  // duzeltin. / "Daha Dun Annemizin": UNVERIFIED/simplified placeholder -
+  // if this song's exact notes matter, please verify and correct.
+  static const MelodyNote melodyDahaDunAnnemizin[] = {
+      {"G4", 1}, {"A4", 1}, {"G4", 1}, {"E4", 1}, {"D4", 2}, {"E4", 1}, {"G4", 2}};
+
+  const MelodyNote *notes = nullptr;
+  int count = 0;
+  switch (melodyId)
+  {
+  case 1:
+    notes = melodyHappyBirthday;
+    count = sizeof(melodyHappyBirthday) / sizeof(MelodyNote);
+    break;
+  case 2:
+    notes = melodyTwinkleTwinkle;
+    count = sizeof(melodyTwinkleTwinkle) / sizeof(MelodyNote);
+    break;
+  case 3:
+    notes = melodyJingleBells;
+    count = sizeof(melodyJingleBells) / sizeof(MelodyNote);
+    break;
+  case 4:
+    notes = melodyStartup;
+    count = sizeof(melodyStartup) / sizeof(MelodyNote);
+    break;
+  case 5:
+    notes = melodyDahaDunAnnemizin;
+    count = sizeof(melodyDahaDunAnnemizin) / sizeof(MelodyNote);
+    break;
+  default:
+    return;
+  }
+
+  for (int i = 0; i < count; i++)
+  {
+    int durationMs = (int)(notes[i].beats * (60000.0f / _bpm));
+    buzzerPlayNote(notes[i].note, durationMs);
+    delay(durationMs / 10); // Notalar arasi kisa bosluk / short gap between notes
+  }
 }
 
 /*********************************** LCD SCREEN ***********************************
@@ -2747,6 +2891,77 @@ inline void IOTBOT::moduleSmartLEDColorWipeEffect(uint32_t color, int wait)
     }
   }
 }
+
+inline void IOTBOT::moduleSmartLEDFill(int red, int green, int blue)
+{
+  if (pixels)
+  {
+    pixels->fill(pixels->Color(red, green, blue));
+    pixels->show();
+  }
+}
+
+inline void IOTBOT::moduleSmartLEDClear()
+{
+  if (pixels)
+  {
+    pixels->clear();
+    pixels->show();
+  }
+}
+
+inline void IOTBOT::moduleSmartLEDSetBrightness(int brightness)
+{
+  if (pixels)
+  {
+    pixels->setBrightness(constrain(brightness, 0, 255));
+    pixels->show();
+  }
+}
+
+inline void IOTBOT::moduleSmartLEDBlink(int red, int green, int blue, int times, int ms)
+{
+  if (!pixels)
+    return;
+  uint32_t color = pixels->Color(red, green, blue);
+  for (int i = 0; i < times; i++)
+  {
+    pixels->fill(color);
+    pixels->show();
+    delay(ms);
+    pixels->clear();
+    pixels->show();
+    delay(ms);
+  }
+}
+
+inline void IOTBOT::moduleSmartLEDBreathe(int red, int green, int blue, int ms)
+{
+  if (!pixels)
+    return;
+  const int steps = 30;
+  int stepDelay = ms / (2 * steps);
+  if (stepDelay < 1)
+    stepDelay = 1;
+
+  uint32_t color = pixels->Color(red, green, blue);
+  pixels->fill(color);
+
+  for (int b = 0; b <= 255; b += (255 / steps))
+  {
+    pixels->setBrightness(b);
+    pixels->show();
+    delay(stepDelay);
+  }
+  for (int b = 255; b >= 0; b -= (255 / steps))
+  {
+    pixels->setBrightness(b);
+    pixels->show();
+    delay(stepDelay);
+  }
+  pixels->setBrightness(255); // Sonraki cagrilar icin tam parlakliga geri don / restore full brightness for subsequent calls
+  pixels->show();
+}
 #endif
 
 /*********************************** IR Sensor ***********************************
@@ -3354,6 +3569,80 @@ inline void IOTBOT::sendESPNow(const uint8_t *macAddr, const uint8_t *data, int 
 inline void IOTBOT::registerOnRecv(esp_now_recv_cb_t cb)
 {
   esp_now_register_recv_cb(cb);
+}
+
+/*********************************** Basit ESP-NOW Mesajlasma ***********************************/
+inline bool IOTBOT::espNowBegin(int channel)
+{
+  initESPNow();
+  setWiFiChannel(channel);
+  startListening();
+  return true;
+}
+
+inline void IOTBOT::espNowSendText(const String &text)
+{
+  CodlaiESPNowMessage msg = {};
+  msg.deviceType = 20; // 20 = basit metin mesaji / simple text message
+  strncpy(msg.text, text.c_str(), sizeof(msg.text) - 1);
+  msg.text[sizeof(msg.text) - 1] = '\0';
+  uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  sendESPNow(broadcastAddress, (const uint8_t *)&msg, sizeof(msg));
+}
+
+inline void IOTBOT::espNowSendNumber(const String &name, float value)
+{
+  CodlaiESPNowMessage msg = {};
+  msg.deviceType = 21; // 21 = basit sayi mesaji / simple number message
+  strncpy(msg.text, name.c_str(), sizeof(msg.text) - 1);
+  msg.text[sizeof(msg.text) - 1] = '\0';
+  msg.value = value;
+  uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  sendESPNow(broadcastAddress, (const uint8_t *)&msg, sizeof(msg));
+}
+
+inline bool IOTBOT::espNowAvailable()
+{
+  // Sadece basit metin/sayi mesajlarini gorur - Kol/Arac kontrol
+  // trafigini (deviceType 1/2/10/11) yok sayar, boylece raw
+  // newData/receivedData'yi dogrudan kullanan diger kodlarla catismaz.
+  // Only sees simple text/number messages - ignores Arm/Car control
+  // traffic (deviceType 1/2/10/11) so it doesn't interfere with other
+  // code that reads raw newData/receivedData directly.
+  return newData && (receivedData.deviceType == 20 || receivedData.deviceType == 21);
+}
+
+inline String IOTBOT::espNowReadText()
+{
+  String result = "";
+  if (newData && receivedData.deviceType == 20)
+  {
+    result = String(receivedData.text);
+    newData = false; // okundu, tekrar okunana kadar "yeni mesaj yok" / consumed, no new message until the next one
+  }
+  return result;
+}
+
+inline String IOTBOT::espNowReadName()
+{
+  String result = "";
+  if (newData && receivedData.deviceType == 21)
+  {
+    result = String(receivedData.text);
+    newData = false;
+  }
+  return result;
+}
+
+inline float IOTBOT::espNowReadNumber()
+{
+  float result = 0.0f;
+  if (newData && receivedData.deviceType == 21)
+  {
+    result = receivedData.value;
+    newData = false;
+  }
+  return result;
 }
 #endif
 

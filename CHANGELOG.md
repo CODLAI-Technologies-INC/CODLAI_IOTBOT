@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-27
+### Added
+- **Basit ESP-NOW mesajlasma** (cocuklar/blok kod icin): `espNowBegin(channel=1)`, `espNowSendText(text)`, `espNowSendNumber(name, value)`, `espNowAvailable()`, `espNowReadText()`, `espNowReadName()`, `espNowReadNumber()`. `CodlaiESPNowMessage` yapisina `char text[32]` ve `float value` alanlari eklendi (Kol/Arac kontrolunu bozmadan) - ayni surumdeki tum CODLAI kartlari arasinda uyumlu.
+- **Melodi**: `buzzerPlayNote(note, durationMs)` (nota adiyla calma, ornegin "C4"/"D#5"), `buzzerPlayMelody(melodyId)` (1=Dogum Gunu, 2=Twinkle Twinkle, 3=Jingle Bells, 4=Baslangic Melodisi, 5=Daha Dun Annemizin [DOGRULANMAMIS, basitlestirilmis yer tutucu]), `buzzerSetTempo(bpm)`.
+- **NeoPixel**: `moduleSmartLEDFill(r,g,b)`, `moduleSmartLEDClear()`, `moduleSmartLEDSetBrightness(0-255)`, `moduleSmartLEDBlink(r,g,b,times,ms)`, `moduleSmartLEDBreathe(r,g,b,ms)`.
+- Yeni ornekler: `IOTBOT_ESPNOW_Simple_Messaging_Example.ino`, `IOTBOT_Buzzer_Melody_Example.ino`, `IOTBOT_NeoPixel_Effects_Example.ino`.
+
 ## [1.6.1] - 2026-09-27
 ### Fixed
 - `moduleDCMotorGOClockWise(speed)` / `moduleDCMotorGOCounterClockWise(speed)`: fonksiyonun kendi belgelemesi `speed`'in 0-255 araliginda oldugunu soylerken, govde icinde yanlislikla `map(speed, 0, 100, 0, 255)` ile tekrar 0-255'e olceklendiriliyordu. Bu yuzden ornegin 200 gonderildiginde PWM degeri 510'a tasip motor pratikte her zaman tam hizda calisiyordu. `map()` kaldirildi, artik dogrudan `constrain(speed, 0, 255)` kullaniliyor - fonksiyonun belgelenen sozlesmesiyle artik tutarli. (Editor ajaninin derleme/blok entegrasyonu testinde bulundu.)
