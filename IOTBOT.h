@@ -502,8 +502,22 @@ public:
       #elif defined(ESP8266)
       registerOnRecv([](uint8_t *mac, uint8_t *incomingData, uint8_t len) {
       #endif
-          if (_getInstance() && len == sizeof(CodlaiESPNowMessage)) {
-              memcpy(&_getInstance()->receivedData, incomingData, sizeof(CodlaiESPNowMessage));
+          // Eski (kutuphanenin onceki surumlerinde daha kucuk olan)
+          // CodlaiESPNowMessage boyutundaki paketleri de kabul ediyoruz:
+          // once yapiyi sifirla (eksik alanlar - ornegin text/value - 0/bos
+          // kalsin), sonra sadece gercekten gelen kadar byte'i kopyala.
+          // Boylece eski surumle derlenmis bir gonderici, yeni surumle
+          // derlenmis bir aliciyla hala konusabilir (tam tersi degil).
+          // Accept packets from an older (smaller) CodlaiESPNowMessage size
+          // too: zero the struct first (so missing fields - e.g. text/
+          // value - are 0/empty), then copy only as many bytes as actually
+          // arrived. This lets an old-version sender still talk to a
+          // new-version receiver (not the other way around).
+          if (_getInstance() && len > 0) {
+              CodlaiESPNowMessage &target = _getInstance()->receivedData;
+              memset(&target, 0, sizeof(target));
+              size_t copyLen = (size_t)len < sizeof(target) ? (size_t)len : sizeof(target);
+              memcpy(&target, incomingData, copyLen);
               _getInstance()->newData = true;
           }
       });

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-27
+### Changed
+- ESP-NOW alicisi (`startListening()`) artik SADECE tam olarak `sizeof(CodlaiESPNowMessage)` boyutunda paketleri degil, ondan KUCUK (eski kutuphane surumleriyle gonderilmis) paketleri de kabul ediyor: yapi once sifirlaniyor, sonra sadece gercekten gelen kadar byte kopyalaniyor (eksik alanlar - ornegin text/value - 0/bos kalir). Boylece ESKI surumle derlenmis bir gonderici, YENI surumle derlenmis bir aliciyla hala konusabilir (tersi degil - eski aliciler hala yeni/daha buyuk paketleri reddeder). Editor ajaninin gecis-donemi uyumluluk onerisi uzerine eklendi.
+
 ## [1.7.0] - 2026-09-27
 ### Added
 - **Basit ESP-NOW mesajlasma** (cocuklar/blok kod icin): `espNowBegin(channel=1)`, `espNowSendText(text)`, `espNowSendNumber(name, value)`, `espNowAvailable()`, `espNowReadText()`, `espNowReadName()`, `espNowReadNumber()`. `CodlaiESPNowMessage` yapisina `char text[32]` ve `float value` alanlari eklendi (Kol/Arac kontrolunu bozmadan) - ayni surumdeki tum CODLAI kartlari arasinda uyumlu.
