@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-27
+### Added
+- Yeni "3-Projects" ornek klasoru: kablosuz (ESP-NOW/WiFi) haberlesme gerektirmeyen, tek basina calisan, gercek hayattan basit proje ornekleri.
+- `IOTBOT_Parking_Assistant_Example.ino` - ultrasonik mesafe sensoru + buzzer (mesafeye gore hizlanan bip) + role (cok yaklasinca tetiklenir), araba park sensoru mantigi.
+- `IOTBOT_RFID_Access_Control_Example.ino` - RFID kart beyaz listesi + role (kapi kilidi) + buzzer + LCD, basit erisim kontrol sistemi.
+- `IOTBOT_PIR_Security_Alarm_Example.ino` - PIR hareket sensoru + role (siren/isik) + surekli buzzer alarmi + B3 butonuyla susturma.
+- `IOTBOT_Plant_Watering_Reminder_Example.ino` - toprak nemi sensoru, kalibrasyonlu (baslangic) baz degere gore kuruma tespiti + periyodik hatirlatma sesi.
+- `IOTBOT_Smoke_Gas_Alarm_Example.ino` - duman/gaz sensoru, temiz hava baz degerine gore esik asimi tespiti + role + buzzer alarmi (egitim amacli, gercek yangin alarmi yerine kullanilmamalidir).
+
+- Yeni ornek: `IOTBOT_ESPNOW_Temperature_Broadcast_Example.ino` - DHT sicaklik degerini surekli yayinlar; MINIBOT/ROLEBOT_ESPNOW_Fan_Control_Reactive_Example.ino ile eslestirilip "kablosuz otomatik vantilator" senaryosunu ogretir.
+
+### Fixed
+- `initESPNow()` icinde kosulsuz `WiFi.mode(WIFI_STA)` cagrisi, ayni sketch'te onceden acilmis bir AP'yi (ornegin bir web sunucusu/OTA icin `softAP()`) sessizce dusuruyordu. Artik mevcut mod AP ya da AP_STA ise `WIFI_AP_STA`'ya geciliyor, AP kapatilmiyor. (Editor ajaninin canli-mod WiFi AP + OTA + ESP-NOW birlikte kullanma senaryosu icin bulundu.)
+
+## [1.5.0] - 2026-09-26
+### Added
+- `serverOnRequest(url, callback)`: `serverCreateLocalPage` SADECE sabit/statik bir HTML sayfasi render eder; bu yeni fonksiyon, bir adrese (ornegin `/led-on`) istek geldiginde GERCEKTEN kod calistirmaniza (bir GPIO/role/LED'i tetiklemenize) izin verir. Web tabanli, gercekten interaktif kontrol panelleri icin gerekliydi.
+- Yeni ornek: `IOTBOT_WiFi_Web_Control_Example.ino` - telefon/tarayicidan LED ve role kontrolu (AP modu, `serverOnRequest` kullanir).
+- Yeni ornek: `IOTBOT_Bluetooth_TR_EN_Control_Example.ino` - Bluetooth terminal uygulamasindan tek harfli komutlarla LED/role kontrolu, iki dilli.
+- Yeni ornek: `IOTBOT_MiniBot_ESPNOW_Pair_Example.ino` - router/WiFi agi olmadan (ESP-NOW ile) bir MINIBOT ile dogrudan, iki yonlu haberlesme; gercek donanimda (iki kart, canli MAC adresleriyle) dogrulandi.
+- Yeni baslangic seviyesi ornekler: `IOTBOT_WiFi_Simple_Status_Example.ino` (MAC/sunucu gerekmeyen en basit WiFi baglanma ornegi), `IOTBOT_ESPNOW_Broadcast_Simple_Example.ino` (MAC adresi bilmeden yayin/broadcast ile herhangi bir CODLAI kartina konusma), `IOTBOT_Bluetooth_Simple_Echo_Example.ino` (en basit Bluetooth yanki ornegi) - egitim mufredati icin "once bunu dene" niteliginde.
+- Yeni ornek: `IOTBOT_ESPNOW_LightSensor_Broadcast_Example.ino` - LDR degerini surekli yayinlar; MINIBOT/ROLEBOT_ESPNOW_NightLight_Reactive_Example.ino ile eslestirilip "kablosuz otomatik gece lambasi" senaryosunu ogretir.
+- Yeni ornek: `IOTBOT_MiniBot_SmartLED_Remote_Example.ino` - bir MINIBOT'un butonuyla akilli LED (NeoPixel) efektini uzaktan degistirir (bkz. MINIBOT_IoTBot_SmartLED_Remote_Example.ino).
+
+### Fixed
+- Acilistan sonraki ilk `tone()` cagrisinda (`playIntro`, `buzzerPlayTone` vb.) seri monitore dusen `E ledc: ledc_get_duty(745): LEDC is not initialized` hatasi giderildi: Arduino-ESP32 2.0.x `tone()` LEDC kanal 0'i `ledcSetup` yapmadan bagliyor; `begin()` artik bu kanal grubunu onceden kuruyor. Islevsel bir etkisi yoktu, sadece hata satiri basiliyordu.
+- **v1.4.0 regresyonu**: `USE_ESPNOW` (ve tek basina USE_SERVER/USE_FIREBASE/USE_OTA/USE_EMAIL/USE_TELEGRAM/USE_WEATHER/USE_WIKIPEDIA/USE_IFTTT harici herhangi bir bayrak) tanimlandiginda `WiFi.h` hic include edilmiyordu - cunku bu bayraklarin `USE_WIFI`'yi otomatik tanimladigi blok, `#include <WiFi.h>` satirindan SONRA geliyordu. v1.4.0'dan once bu, kosulsuz (artik kaldirilmis) bir `WiFi.h` include'u tarafindan maskeleniyordu. `WiFi.h` include'u artik butun bu bayraklardan SONRA, en sona alindi. (Gercek donanimda IoTBot<->MiniBot ESP-NOW testi sirasinda kesfedildi.)
+
 ## [1.4.0] - 2026-09-26
 ### Changed
 - **Flash boyutu ciddi olcude kucultuldu** (bir egitim uygulamasinda 888KB -> 434KB, ~%51): `Stepper.h` artik sadece `USE_STEP_MOTOR` tanimliyken, `LittleFS.h` artik sadece `USE_FIREBASE` tanimliyken include ediliyor; onceden kosulsuz include edilen ikinci (fazladan) `WiFi.h` satiri kaldirildi (asagidaki `USE_WIFI` korumali kopyasi zaten yeterli). `moduleStepMotorMotion()` de artik `USE_STEP_MOTOR` tanimlanmadan kullanilamiyor - step motor kullanan sketch'ler `#include <IOTBOT.h>` satirindan ONCE `#define USE_STEP_MOTOR` eklemeli.

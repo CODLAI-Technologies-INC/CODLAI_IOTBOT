@@ -120,6 +120,7 @@ moduleIRReadDecimalx8	KEYWORD2
 moduleRFIDRead	KEYWORD2
 serverStart	KEYWORD2
 serverCreateLocalPage	KEYWORD2
+serverOnRequest	KEYWORD2
 serverHandleDNS	KEYWORD2
 serverContinue	KEYWORD2
 fbServerSetandStartWithUser	KEYWORD2

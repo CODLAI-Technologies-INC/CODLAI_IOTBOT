@@ -59,6 +59,7 @@
 #endif
 #include <ESPAsyncWebServer.h>
 #include <DNSServer.h>
+#include <functional> // serverOnRequest icin std::function
 #endif
 
 #if defined(USE_FIREBASE)
@@ -74,10 +75,6 @@
 #define USE_WIFI
 #endif
 #include <ArduinoOTA.h>
-#endif
-
-#if defined(USE_WIFI)
-#include <WiFi.h>
 #endif
 
 #if defined(USE_ESPNOW)
@@ -103,6 +100,17 @@
 #endif
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#endif
+
+// NOT: <WiFi.h> include'u kasitli olarak EN SONA alindi - USE_SERVER/
+// USE_FIREBASE/USE_OTA/USE_ESPNOW/USE_EMAIL/USE_TELEGRAM/USE_WEATHER/
+// USE_WIKIPEDIA/USE_IFTTT bayraklarinin HERHANGI biri USE_WIFI'yi
+// KENDI blogu icinde otomatik tanimliyor; bu satir onlardan ONCE olursa
+// (ornegin sadece USE_ESPNOW tanimliyken) USE_WIFI henuz tanimlanmamis
+// olur ve WiFi.h hic include edilmez (v1.4.0'da tam olarak bu bug
+// yasandi - eskiden kosulsuz bir WiFi.h include'u bunu maskeliyordu).
+#if defined(USE_WIFI)
+#include <WiFi.h>
 #endif
 
 #if defined(USE_BLUETOOTH) && defined(ESP32)
@@ -387,6 +395,13 @@ public:
 #if defined(USE_SERVER)
   void serverStart(const char *mode, const char *ssid, const char *password);
   void serverCreateLocalPage(const char *url, const char *WEBPageScript, const char *WEBPageCSS, const char *WEBPageHTML, size_t bufferSize = 4096);
+  // serverCreateLocalPage SADECE sabit/statik bir HTML sayfasi render eder;
+  // butona basildiginda gercekten bir GPIO/role/LED tetiklemek icin bu
+  // fonksiyon kullanilir. url'e (ornegin "/led-on") bir GET istegi geldiginde
+  // verilen callback CALISTIRILIR (donanimi kontrol edebilir) ve callback'in
+  // dondurdugu metin tarayiciya duz yazi olarak gonderilir. Web tabanli
+  // kontrol uygulamalari (butonla LED/role acma-kapama vb.) icin kullanilir.
+  void serverOnRequest(const char *url, std::function<String()> callback);
   void serverHandleDNS();
   void serverContinue();
 #endif
@@ -706,6 +721,12 @@ inline void IOTBOT::begin()
   lcd.backlight();
   createTurkishChars(); // Initialize Turkish characters
   lcd.clear();
+
+  // tone() LEDC kanal 0'i ledcSetup yapmadan ledcAttachPin ile bagliyor;
+  // kanal 0-7 grubu henuz hic kurulmadiysa ESP-IDF ilk tone() cagrisinda
+  // "ledc_get_duty: LEDC is not initialized" hatasi basiyor. Grubu burada
+  // onceden kuruyoruz (tone her cagrida frekansi zaten yeniden ayarliyor).
+  ledcSetup(0, 1000, 10);
 
   analogWrite(BUZZER_PIN, 750);
   delay(125);
@@ -3018,6 +3039,15 @@ inline void IOTBOT::serverCreateLocalPage(const char *url, const char *WEBPageSc
   }
 }
 
+inline void IOTBOT::serverOnRequest(const char *url, std::function<String()> callback)
+{
+  serverCODLAI.on(url, HTTP_GET, [callback](AsyncWebServerRequest *request)
+                  {
+                    String response = callback(); // Donanim burada tetiklenir (LED/role/vb.)
+                    request->send(200, "text/plain", response);
+                  });
+}
+
 inline void IOTBOT::serverHandleDNS()
 {
   dnsServer.processNextRequest();
@@ -3254,7 +3284,15 @@ inline String IOTBOT::fbServerGetJSON(const char *dataPath)
 #if defined(USE_ESPNOW)
 inline void IOTBOT::initESPNow()
 {
-  WiFi.mode(WIFI_STA);
+  // Zaten AP ya da AP_STA modundaysa (ornegin ayni sketch'te bir web
+  // sunucusu/OTA icin softAP() calisiyorsa) bu AP'yi DUSURMEDEN STA'yi
+  // ekliyoruz. Kosulsuz WiFi.mode(WIFI_STA) AP'yi anlik olarak kapatirdi.
+  // If already in AP or AP_STA mode (e.g. a web server/OTA in the same
+  // sketch has called softAP()), add STA WITHOUT dropping that AP.
+  // Unconditionally calling WiFi.mode(WIFI_STA) would have silently
+  // dropped the AP.
+  wifi_mode_t currentMode = WiFi.getMode();
+  WiFi.mode((currentMode == WIFI_MODE_AP || currentMode == WIFI_MODE_APSTA) ? WIFI_AP_STA : WIFI_STA);
   WiFi.disconnect();
   if (esp_now_init() != 0)
   {
