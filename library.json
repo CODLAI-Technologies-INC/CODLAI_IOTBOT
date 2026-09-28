@@ -1,6 +1,6 @@
 {
   "name": "CODLAI_IOTBOT",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Library for IOTBOT, an ESP32-based programmable device. Visit www.codlai.com for more information.",
   "keywords": [
     "robotics",
@@ -49,5 +49,19 @@
     "examples/main/IOTBOT_basic_example"
   ],
   "homepage": "https://github.com/CODLAI-Technologies-INC/CODLAI_IOTBOT",
-  "dependencies": {}
+  "dependencies": {
+    "madhephaestus/ESP32Servo": "^3.0.6",
+    "marcoschwartz/LiquidCrystal_I2C": "^1.1.4",
+    "paulstoffregen/Encoder": "^1.4.4",
+    "adafruit/Adafruit NeoPixel": "^1.10.6",
+    "adafruit/Adafruit Unified Sensor": "^1.0.3",
+    "adafruit/DHT sensor library": "^1.4.4",
+    "arduino-libraries/Stepper": "^1.1.3",
+    "crankyoldgit/IRremoteESP8266": "^2.8.6",
+    "miguelbalboa/MFRC522": "^1.4.11",
+    "mathieucarbou/ESPAsyncWebServer": "^3.6.0",
+    "mobizt/Firebase Arduino Client Library for ESP8266 and ESP32": "^4.4.14",
+    "mobizt/ESP Mail Client": "^3.4.17",
+    "bblanchon/ArduinoJson": "^7.1.0"
+  }
 }

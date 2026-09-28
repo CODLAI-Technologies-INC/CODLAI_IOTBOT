@@ -3873,7 +3873,7 @@ inline String IOTBOT::getWeather(String city, String apiKey)
       if (httpCode > 0)
       {
         String payload = http.getString();
-        JsonDocument doc; // DynamicJsonDocument yerine JsonDocument kullanıyoruz (ArduinoJson v7)
+        DynamicJsonDocument doc(1024); // ArduinoJson v6 VE v7 ile uyumlu (JsonDocument sadece v7'de var) / compatible with BOTH ArduinoJson v6 and v7 (JsonDocument only exists in v7)
         deserializeJson(doc, payload);
         float temp = doc["main"]["temp"];
         String weather = doc["weather"][0]["description"];
@@ -3916,11 +3916,14 @@ inline String IOTBOT::getWikipedia(String query, String lang)
   if (httpCode > 0)
   {
     String payload = http.getString();
-    JsonDocument doc; // DynamicJsonDocument yerine JsonDocument kullanıyoruz (ArduinoJson v7)
+    DynamicJsonDocument doc(2048); // ArduinoJson v6 VE v7 ile uyumlu / compatible with BOTH ArduinoJson v6 and v7
     deserializeJson(doc, payload);
-    
-    // Extract alanını kontrol et / Check extract field
-    if (doc.containsKey("extract")) {
+
+    // Extract alanını kontrol et - containsKey() ArduinoJson v7'de kaldirildi,
+    // bu yuzden v6/v7 ile de calisan isNull() kontrolu kullaniliyor. / Check
+    // the extract field - containsKey() was removed in ArduinoJson v7, so we
+    // use an isNull() check that works on both v6 and v7.
+    if (!doc["extract"].isNull()) {
         String extract = doc["extract"].as<String>();
         http.end();
         return extract;

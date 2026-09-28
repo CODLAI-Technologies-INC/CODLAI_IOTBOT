@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-09-28
+### Fixed
+- `getWeather()`/`getWikipedia()`: `JsonDocument` (ArduinoJson v7'ye ozel bir tip) yerine hem v6 hem v7'de calisan `DynamicJsonDocument` kullaniliyor artik. Kutuphanenin `library.properties` dosyasindaki `depends=` alaninda ArduinoJson icin surum kisiti olmadigindan, baglanti kuran ortamda (ornegin arduino-cli) eski bir ArduinoJson v6 cozumlenirse `JsonDocument`/`deserializeJson` "was not declared" derleme hatasi olusabiliyordu - artik surumden bagimsiz calisiyor. (Editor ajaninin `USE_SERVER`+`USE_WEATHER` derleme testinde bulundu.)
+- `getWikipedia()`: `doc.containsKey("extract")` ArduinoJson v7'de KALDIRILMIS bir fonksiyondu - gercek ArduinoJson v7 ile derlenirse bu satir hic derlenmiyordu. v6/v7 ile de calisan `!doc["extract"].isNull()` kontroluyle degistirildi.
+- `library.json`: bos birakilmis (`{}`) `dependencies` alanina gercek bagimliliklar (ESP32Servo, LiquidCrystal_I2C, Encoder, NeoPixel, DHT, IRremoteESP8266, MFRC522, ESPAsyncWebServer, Firebase, ESP Mail Client, ArduinoJson) eklendi - PlatformIO uzerinden kurulumlarda otomatik cozumlenmiyordu.
+
 ## [1.7.1] - 2026-09-27
 ### Changed
 - ESP-NOW alicisi (`startListening()`) artik SADECE tam olarak `sizeof(CodlaiESPNowMessage)` boyutunda paketleri degil, ondan KUCUK (eski kutuphane surumleriyle gonderilmis) paketleri de kabul ediyor: yapi once sifirlaniyor, sonra sadece gercekten gelen kadar byte kopyalaniyor (eksik alanlar - ornegin text/value - 0/bos kalir). Boylece ESKI surumle derlenmis bir gonderici, YENI surumle derlenmis bir aliciyla hala konusabilir (tersi degil - eski aliciler hala yeni/daha buyuk paketleri reddeder). Editor ajaninin gecis-donemi uyumluluk onerisi uzerine eklendi.
