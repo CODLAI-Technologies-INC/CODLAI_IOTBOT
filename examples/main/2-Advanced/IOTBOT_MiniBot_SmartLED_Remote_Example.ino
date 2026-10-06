@@ -1,9 +1,8 @@
 // TR: EGLENCELI KABLOSUZ ORNEK - Bir MINIBOT'un butonuyla, uzaktaki bir
 // IOTBOT'un akilli LED serisinin (NeoPixel) rengini/efektini
 // degistiriyoruz. Iki kart arasinda hicbir kablo yok - sadece ESP-NOW.
-// Once bu kodu bir IOTBOT'a, sonra IOTBOT_MiniBot_SmartLED_Remote_
-// Kumanda_Example.ino'yu (asagida ayni dosyada anlatilir, MINIBOT
-// tarafi ayri dosyadadir) bir MINIBOT'a yukleyin.
+// Once bu kodu bir IOTBOT'a, sonra MINIBOT tarafini
+// (MINIBOT_IoTBot_SmartLED_Remote_Example.ino) bir MINIBOT'a yukleyin.
 // EN: A FUN WIRELESS EXAMPLE - use a MINIBOT's button to remotely change
 // the color/effect of an IOTBOT's smart LED strip (NeoPixel). No wire
 // between the two boards - just ESP-NOW. Upload this to an IOTBOT, and

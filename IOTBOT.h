@@ -19,6 +19,8 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 #include <time.h>
+#include <soc/gpio_reg.h>     // GPIO_ENABLE_REG vb. - servo/IR pin durumu kontrolu / pin state checks for servo/IR
+#include <soc/gpio_sig_map.h> // SIG_GPIO_OUT_IDX
 
 #if defined(USE_STEP_MOTOR)
 #include <Stepper.h>
@@ -121,7 +123,7 @@
 #ifndef CODLAI_ESPNOW_MESSAGE_DEFINED
 #define CODLAI_ESPNOW_MESSAGE_DEFINED
 typedef struct {
-  uint8_t deviceType; // 1=Armbot, 2=Carbot, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji
+  uint8_t deviceType; // 1=Armbot komutu, 2=Carbot komutu, 3=Carbot telemetrisi (axis3=mesafe cm, -1=bilinmiyor), 4=Armbot sinyali, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji, 22-29=REZERVE: editor.codlai.com ozel/eslesmeli mesajlasma bloklari (22 ozel metin, 23 ozel sayi, 24 eslesme teklifi, 25 eslesme kabulu; axis1=grup, axis2/axis3=hedef MAC, her zaman yayinla gonderilir, suzgec alicida), 30-39=REZERVE: CODLAI Robotlari Otonom projesi (30 eslesme teklifi, 31 eslesme kabul, 32 mod, 33 durum)
   int axis1;
   int axis2;
   int axis3;
@@ -468,6 +470,24 @@ public:
   bool ntpIsTimeValid(time_t minEpoch = 1609459200);
   time_t ntpGetEpoch();
   String ntpGetDateTimeString();
+  // --- Blok dostu internet saati / Block-friendly internet time ---
+  // TR: ntpBegin(3) ile baslat (Turkiye UTC+3; once WiFi'ye baglanin). Saat
+  // gecerli degilse okuma fonksiyonlari -1 (metinler "--") dondurur.
+  // EN: start with ntpBegin(3) (Turkey UTC+3; connect to WiFi first). While the
+  // time is not valid, the getters return -1 (strings return "--").
+  bool ntpUpdate();                  // Saati SIMDI yeniden cek (son ayarlarla) / re-sync NOW (last settings)
+  int ntpGetHour();                  // 0-23
+  int ntpGetMinute();                // 0-59
+  int ntpGetSecond();                // 0-59
+  int ntpGetDay();                   // 1-31
+  int ntpGetMonth();                 // 1-12
+  int ntpGetYear();                  // ornek / e.g. 2026
+  int ntpGetWeekday();               // 1=Pazartesi/Monday ... 7=Pazar/Sunday
+  String ntpGetTimeString();         // "14:05:09"
+  String ntpGetDateString();         // "29.09.2026"
+  bool ntpTimeIs(int hour, int minute);      // O dakika boyunca true / true during that whole minute
+  bool ntpTimeReached(int hour, int minute); // O dakikaya girince SADECE BIR KEZ true / true only ONCE when that minute starts
+  bool ntpTimeIsBetween(int startHour, int startMinute, int endHour, int endMinute); // [baslangic, bitis) gece yarisini asabilir / [start, end) may cross midnight
 
   /*********************************** ESP-NOW ***********************************
    */
@@ -596,6 +616,16 @@ public:
 private:
   static constexpr uint16_t _EEPROM_RECORD_MAGIC = 0xCD1A;
   static constexpr time_t _NTP_VALID_EPOCH = 1609459200; // 2021-01-01
+  // ntpUpdate() icin son NTP ayarlari / last NTP settings for ntpUpdate()
+  String _ntpServer = "pool.ntp.org";
+  long _ntpGmtOffsetSec = 0;
+  int _ntpDaylightOffsetSec = 0;
+  // ntpTimeReached() icin: her saat:dakika icin en son tetiklendigi dakika damgasi
+  // / for ntpTimeReached(): last minute stamp each hour:minute fired at
+  struct _NtpReachedSlot { int16_t key; int32_t stamp; };
+  _NtpReachedSlot _ntpReached[8] = {};
+  uint8_t _ntpReachedCount = 0;
+  bool _ntpLocalTime(struct tm &out);
 
   bool _eepromReady = false;
   size_t _eepromSize = 0;
@@ -617,6 +647,8 @@ private:
 #if defined(USE_SERVO)
   Servo servoModule; // Create a Servo object for controlling the servo motor
   int currentAngle = 0;
+  int _servoPin = -1; // Servo'nun su an bagli oldugu pin / pin the servo is attached to now
+  bool _servoPinStillPwm(int pin);
 #endif
 
 #if defined(USE_DHT)
@@ -1004,12 +1036,18 @@ inline void IOTBOT::buzzerPlayMelody(int melodyId)
   static const MelodyNote melodyStartup[] = {
       {"C4", 0.5}, {"E4", 0.5}, {"G4", 0.5}, {"C5", 1}};
 
-  // "Daha Dun Annemizin": DOGRULANMAMIS/basitlestirilmis yer tutucu -
-  // eger bu sarkinin dogru notalari onemliyse lutfen dogrulayip
-  // duzeltin. / "Daha Dun Annemizin": UNVERIFIED/simplified placeholder -
-  // if this song's exact notes matter, please verify and correct.
+  // "Daha Dun Annemizin": "Ah! Vous dirai-je, Maman" ezgisidir (Twinkle
+  // Twinkle ile ayni melodi); burada kita + nakaratin tamami calinir:
+  // Do Do Sol Sol La La Sol / Fa Fa Mi Mi Re Re Do / Sol Sol Fa Fa Mi Mi Re (x2).
+  // / "Daha Dun Annemizin" uses the "Ah! Vous dirai-je, Maman" tune (same
+  // melody as Twinkle Twinkle); the full verse + chorus is played here.
   static const MelodyNote melodyDahaDunAnnemizin[] = {
-      {"G4", 1}, {"A4", 1}, {"G4", 1}, {"E4", 1}, {"D4", 2}, {"E4", 1}, {"G4", 2}};
+      {"C4", 1}, {"C4", 1}, {"G4", 1}, {"G4", 1}, {"A4", 1}, {"A4", 1}, {"G4", 2},
+      {"F4", 1}, {"F4", 1}, {"E4", 1}, {"E4", 1}, {"D4", 1}, {"D4", 1}, {"C4", 2},
+      {"G4", 1}, {"G4", 1}, {"F4", 1}, {"F4", 1}, {"E4", 1}, {"E4", 1}, {"D4", 2},
+      {"G4", 1}, {"G4", 1}, {"F4", 1}, {"F4", 1}, {"E4", 1}, {"E4", 1}, {"D4", 2},
+      {"C4", 1}, {"C4", 1}, {"G4", 1}, {"G4", 1}, {"A4", 1}, {"A4", 1}, {"G4", 2},
+      {"F4", 1}, {"F4", 1}, {"E4", 1}, {"E4", 1}, {"D4", 1}, {"D4", 1}, {"C4", 2}};
 
   const MelodyNote *notes = nullptr;
   int count = 0;
@@ -1051,7 +1089,8 @@ inline void IOTBOT::buzzerPlayMelody(int melodyId)
  */
 inline void IOTBOT::lcdWriteMid(const char *line1, const char *line2, const char *line3, const char *line4)
 {
-  lcd.clear();
+  // lcd.clear() YOK - asagida her satir tamamen yeniden yaziliyor (titremez).
+  // / No lcd.clear() - every row is fully rewritten below (no flicker).
 
   // Convert to String to handle TR chars
   String s1 = convertTR(String(line1));
@@ -1087,18 +1126,32 @@ inline void IOTBOT::lcdWriteMid(const char *line1, const char *line2, const char
   startCol3 = max(0, startCol3);
   startCol4 = max(0, startCol4);
 
-  // Print each line on the LCD at the calculated starting column
-  lcd.setCursor(startCol1, 0); // Line 0
-  lcd.print(s1);
+  // Her satiri bastan sona (20 kolon) yaz: ortalanmis metnin solu ve sagi
+  // bosluk. Sonuc lcd.clear() + yazma ile birebir ayni goruntudur, ama ekran
+  // arada bos kalmadigi icin loop() icinde sik cagrildiginda TITREMEZ.
+  // / Write every row end to end (20 columns): spaces left and right of the
+  // centered text. The result is identical to lcd.clear() + print, but the
+  // screen never goes blank in between, so it does NOT flicker when called
+  // often from loop().
+  const String *rows[4] = {&s1, &s2, &s3, &s4};
+  const int starts[4] = {startCol1, startCol2, startCol3, startCol4};
+  for (int row = 0; row < 4; row++)
+  {
+    lcd.setCursor(0, row);
+    int col = 0;
+    for (; col < starts[row]; col++)
+      lcd.write(' ');
+    lcd.print(*rows[row]);
+    col += rows[row]->length();
+    for (; col < lcdColumns; col++)
+      lcd.write(' ');
+  }
 
-  lcd.setCursor(startCol2, 1); // Line 1
-  lcd.print(s2);
-
-  lcd.setCursor(startCol3, 2); // Line 2
-  lcd.print(s3);
-
-  lcd.setCursor(startCol4, 3); // Line 3
-  lcd.print(s4);
+  // Imleci eski davranistaki yerine (4. satir metninin sonu) geri koy; bu
+  // fonksiyondan sonra lcdWrite() ile devam eden kodlar ayni yere yazar.
+  // / Put the cursor back where the old version left it (end of the 4th
+  // line's text), so code that continues with lcdWrite() writes there.
+  lcd.setCursor(min(startCol4 + len4, lcdColumns - 1), 3);
 }
 
 inline void IOTBOT::lcdWrite(const char *text) // Overloaded function for const char* / `const char*` için fonksiyon
@@ -1177,10 +1230,17 @@ inline void IOTBOT::lcdWriteFixed(int row, const char *text)
     return;
 
   lcd.setCursor(0, row);
+  // Metin bitince ('\0') okumayi BIRAK ve satiri boslukla doldur; eskiden
+  // '\0'dan sonra da text[col] okunup bellekteki rastgele baytlar ekrana
+  // basiliyordu. / STOP reading at the end of the text ('\0') and pad the
+  // row with spaces; it used to keep reading text[col] past '\0' and print
+  // random bytes from memory.
+  bool ended = false;
   for (int col = 0; col < 20; ++col)
   {
-    char value = text[col];
-    lcd.write(value == '\0' ? ' ' : value);
+    if (!ended && text[col] == '\0')
+      ended = true;
+    lcd.write(ended ? ' ' : text[col]);
   }
 }
 
@@ -1388,6 +1448,22 @@ inline void IOTBOT::potentiometertest()
  */
 inline int IOTBOT::joystickXRead()
 {
+#if defined(USE_WIFI)
+  // Joystick X, GPIO15 = ADC2 pinidir; WiFi/ESP-NOW acikken ESP32 ADC2'yi
+  // okuyamaz (genelde 0 doner). Kod bozulmasin diye okumayi degistirmiyoruz,
+  // sadece BIR KEZ uyariyoruz. Kablosuz projelerde joystick Y (GPIO34) veya
+  // potansiyometre (GPIO36) kullanin - ikisi de ADC1.
+  // / Joystick X is GPIO15 = an ADC2 pin; the ESP32 cannot read ADC2 while
+  // WiFi/ESP-NOW is on (it usually returns 0). The read itself is unchanged,
+  // we only warn ONCE. In wireless projects use joystick Y (GPIO34) or the
+  // potentiometer (GPIO36) - both are ADC1.
+  static bool warned = false;
+  if (!warned && WiFi.getMode() != WIFI_MODE_NULL)
+  {
+    warned = true;
+    Serial.println("UYARI/WARNING: joystickXRead() GPIO15 (ADC2) - WiFi/ESP-NOW acikken okunamaz / cannot be read while WiFi/ESP-NOW is on. Joystick Y veya potansiyometre kullanin / use joystick Y or the potentiometer.");
+  }
+#endif
   return analogRead(JOYSTICK_X_PIN);
 }
 
@@ -2579,7 +2655,13 @@ inline bool IOTBOT::ntpSync(const char *ntpServer, long gmtOffsetSec, int daylig
     ntpServer = "pool.ntp.org";
   }
 
-  configTime(gmtOffsetSec, daylightOffsetSec, ntpServer);
+  // ntpUpdate() ayni ayarlarla tekrar cagirabilsin diye sakla.
+  // / Remember the settings so ntpUpdate() can call again with them.
+  _ntpServer = ntpServer;
+  _ntpGmtOffsetSec = gmtOffsetSec;
+  _ntpDaylightOffsetSec = daylightOffsetSec;
+
+  configTime(gmtOffsetSec, daylightOffsetSec, _ntpServer.c_str());
 
   const uint32_t startMs = millis();
   while ((millis() - startMs) < timeoutMs)
@@ -2638,6 +2720,161 @@ inline String IOTBOT::ntpGetDateTimeString()
   return String(buf);
 }
 
+/*********************************** NTP - Blok dostu saat / Block-friendly time ***********************************
+ * TR: ESP cekirdegi saati arka planda zaten periyodik olarak (varsayilan ~1 saat) yeniden
+ * esitler; ntpUpdate() bunu hemen yapmak icindir.
+ * EN: The ESP core already re-syncs the clock periodically in the background (default
+ * ~1 hour); ntpUpdate() does it right now.
+ */
+inline bool IOTBOT::_ntpLocalTime(struct tm &out)
+{
+  time_t now = time(nullptr);
+  if (now < _NTP_VALID_EPOCH)
+  {
+    return false;
+  }
+  localtime_r(&now, &out);
+  return true;
+}
+
+inline bool IOTBOT::ntpUpdate()
+{
+  return ntpSync(_ntpServer.c_str(), _ntpGmtOffsetSec, _ntpDaylightOffsetSec, 10000);
+}
+
+inline int IOTBOT::ntpGetHour()
+{
+  struct tm t;
+  return _ntpLocalTime(t) ? t.tm_hour : -1;
+}
+
+inline int IOTBOT::ntpGetMinute()
+{
+  struct tm t;
+  return _ntpLocalTime(t) ? t.tm_min : -1;
+}
+
+inline int IOTBOT::ntpGetSecond()
+{
+  struct tm t;
+  return _ntpLocalTime(t) ? t.tm_sec : -1;
+}
+
+inline int IOTBOT::ntpGetDay()
+{
+  struct tm t;
+  return _ntpLocalTime(t) ? t.tm_mday : -1;
+}
+
+inline int IOTBOT::ntpGetMonth()
+{
+  struct tm t;
+  return _ntpLocalTime(t) ? t.tm_mon + 1 : -1;
+}
+
+inline int IOTBOT::ntpGetYear()
+{
+  struct tm t;
+  return _ntpLocalTime(t) ? t.tm_year + 1900 : -1;
+}
+
+inline int IOTBOT::ntpGetWeekday()
+{
+  struct tm t;
+  if (!_ntpLocalTime(t))
+  {
+    return -1;
+  }
+  // tm_wday: 0=Pazar ... 6=Cumartesi -> 1=Pazartesi ... 7=Pazar
+  // / tm_wday: 0=Sunday ... 6=Saturday -> 1=Monday ... 7=Sunday
+  return (t.tm_wday == 0) ? 7 : t.tm_wday;
+}
+
+inline String IOTBOT::ntpGetTimeString()
+{
+  struct tm t;
+  if (!_ntpLocalTime(t))
+  {
+    return String("--:--:--");
+  }
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
+  return String(buf);
+}
+
+inline String IOTBOT::ntpGetDateString()
+{
+  struct tm t;
+  if (!_ntpLocalTime(t))
+  {
+    return String("--.--.----");
+  }
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%02d.%02d.%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+  return String(buf);
+}
+
+inline bool IOTBOT::ntpTimeIs(int hour, int minute)
+{
+  struct tm t;
+  return _ntpLocalTime(t) && t.tm_hour == hour && t.tm_min == minute;
+}
+
+inline bool IOTBOT::ntpTimeReached(int hour, int minute)
+{
+  struct tm t;
+  if (!_ntpLocalTime(t) || t.tm_hour != hour || t.tm_min != minute)
+  {
+    return false;
+  }
+
+  // Bu dakikayi benzersiz tanimlayan damga (yil + yilin gunu + dakika).
+  // / A stamp that uniquely identifies this minute (year + day of year + minute).
+  const int32_t stamp = ((int32_t)(t.tm_year % 100) * 366 + t.tm_yday) * 1440 + hour * 60 + minute;
+  const int16_t key = (int16_t)(hour * 60 + minute);
+
+  for (uint8_t i = 0; i < _ntpReachedCount; i++)
+  {
+    if (_ntpReached[i].key == key)
+    {
+      if (_ntpReached[i].stamp == stamp)
+      {
+        return false; // Bu dakikada zaten tetiklendi / already fired in this minute
+      }
+      _ntpReached[i].stamp = stamp;
+      return true;
+    }
+  }
+
+  // Yeni saat:dakika - bos yuvaya yaz (8 dolarsa en eskisinin yerine).
+  // / New hour:minute - use a free slot (reuse the first one if all 8 are taken).
+  uint8_t slot = (_ntpReachedCount < 8) ? _ntpReachedCount++ : 0;
+  _ntpReached[slot].key = key;
+  _ntpReached[slot].stamp = stamp;
+  return true;
+}
+
+inline bool IOTBOT::ntpTimeIsBetween(int startHour, int startMinute, int endHour, int endMinute)
+{
+  struct tm t;
+  if (!_ntpLocalTime(t))
+  {
+    return false;
+  }
+  const int now = t.tm_hour * 60 + t.tm_min;
+  const int start = startHour * 60 + startMinute;
+  const int end = endHour * 60 + endMinute;
+  if (start == end)
+  {
+    return false;
+  }
+  if (start < end)
+  {
+    return now >= start && now < end;
+  }
+  return now >= start || now < end; // Gece yarisini asan aralik (22:00-06:00) / range crossing midnight
+}
+
 /*********************************** Servo Angle Control ***********************************
  * Moves a servo to the specified angle with optional acceleration control.
  * pin: The GPIO pin connected to the servo signal.
@@ -2652,8 +2889,32 @@ inline void IOTBOT::moduleServoGoAngle(int pin, int angle, int acceleration)
   acceleration = max(acceleration, 1); // Minimum 1 ms gecikme
 
   // Attach the servo to the specified pin if not already attached
-  if (!servoModule.attached())
+  // Yeniden baglama gereken durumlar: (1) hic bagli degil, (2) BASKA bir pin
+  // istendi (eskiden pin parametresi yok sayilip ilk pin surulmeye devam
+  // ediliyordu), (3) ayni pin baska bir fonksiyonla (moduleRelayWrite,
+  // digitalWrite, pinMode INPUT...) normal GPIO'ya cevrilmis - bu durumda PWM
+  // baglantisi kopar ama attached() hala true der.
+  // / Re-attach when: (1) not attached, (2) a DIFFERENT pin is requested (the
+  // pin argument used to be ignored and the first pin kept being driven),
+  // (3) the same pin was turned back into a plain GPIO by another function
+  // (moduleRelayWrite, digitalWrite, pinMode INPUT...) - the PWM link is gone
+  // but attached() still says true.
+  const bool pinChanged = (_servoPin != pin);
+  if (!servoModule.attached() || pinChanged || !_servoPinStillPwm(pin))
   {
+    if (servoModule.attached())
+    {
+      servoModule.detach();
+    }
+    if (pinChanged && _servoPin != -1)
+    {
+      // Yeni pindeki servonun gercek acisini bilmiyoruz: kademeli yurume
+      // eski servonun acisindan baslamasin, dogrudan hedefe gitsin.
+      // / We don't know the real angle of the servo on the new pin: don't
+      // sweep from the old servo's angle, go straight to the target.
+      currentAngle = constrain(angle, 0, 180);
+    }
+    _servoPin = pin;
 #if defined(USE_ARMBOT) || defined(USE_CARBOT)
     // ARMBOT/CARBOT ile birlikte kullanilan kitler icin ayarlanmis eski/dar
     // puls araligi - bu kombinasyonda degistirmiyoruz.
@@ -2700,6 +2961,27 @@ inline void IOTBOT::moduleServoDetach()
   {
     servoModule.detach();
   }
+  _servoPin = -1;
+}
+
+// Pin hala PWM (LEDC) sinyaline bagli mi? ESP32 GPIO matrisinde pin normal
+// GPIO cikisina (SIG_GPIO_OUT_IDX) donmusse ya da cikisi kapatilmissa (pinMode
+// INPUT) servo sinyali artik o pine gitmiyor demektir. Sadece iki register
+// okumasi - her cagrida servoyu sokup takmaktan (titreme) cok daha iyi.
+// / Is the pin still routed to the PWM (LEDC) signal? If the ESP32 GPIO matrix
+// shows the pin back on plain GPIO output (SIG_GPIO_OUT_IDX) or its output is
+// disabled (pinMode INPUT), the servo signal no longer reaches it. Just two
+// register reads - much better than detaching/attaching on every call (jitter).
+inline bool IOTBOT::_servoPinStillPwm(int pin)
+{
+  if (pin < 0 || pin > 39)
+  {
+    return false;
+  }
+  const uint32_t outSel = REG_READ(GPIO_FUNC0_OUT_SEL_CFG_REG + (pin * 4)) & GPIO_FUNC0_OUT_SEL_M;
+  const bool outputEnabled = (pin < 32) ? ((REG_READ(GPIO_ENABLE_REG) >> pin) & 1U)
+                                        : ((REG_READ(GPIO_ENABLE1_REG) >> (pin - 32)) & 1U);
+  return outputEnabled && outSel != SIG_GPIO_OUT_IDX;
 }
 #endif
 
@@ -3022,7 +3304,15 @@ inline int IOTBOT::moduleRFIDRead()
 
 inline void IOTBOT::initializeIR(int pin) // Initialize the IR module / IR modülünü başlat
 {
-  if (!irrecv || irPin != pin)
+  // Pin baska bir fonksiyonla (trafik isigi, role, DC motor...) CIKISA
+  // cevrildiyse IR alicinin kesmesi olur ve alici bir daha hic veri almaz;
+  // bu durumda da bastan kur. / If another function (traffic light, relay, DC
+  // motor...) turned the pin into an OUTPUT, the receiver's interrupt is dead
+  // and it never receives again; re-initialise in that case too.
+  const bool pinBecameOutput = (pin >= 0 && pin < 40) &&
+                               ((pin < 32) ? ((REG_READ(GPIO_ENABLE_REG) >> pin) & 1U)
+                                           : ((REG_READ(GPIO_ENABLE1_REG) >> (pin - 32)) & 1U));
+  if (!irrecv || irPin != pin || pinBecameOutput)
   {                                           // Eğer IR alıcı yoksa veya pin değişmişse baştan başlat
     irPin = pin;                              // Store the IR receiver pin / IR alıcı pini sakla
     delete irrecv;                            // Önceki nesneyi temizle
@@ -3640,7 +3930,14 @@ inline String IOTBOT::espNowReadText()
 inline String IOTBOT::espNowReadName()
 {
   String result = "";
-  if (newData && receivedData.deviceType == 21)
+  // newData'ya bakmadan son SAYI mesajini dondur: boylece espNowReadName()
+  // ve espNowReadNumber() hangi sirayla cagrilirsa cagrilsin ikisi de dogru
+  // degeri verir (eskiden ilki mesaji tuketip digerine 0/"" dondururdu).
+  // / Return the last NUMBER message regardless of newData, so
+  // espNowReadName() and espNowReadNumber() both give the right value in
+  // any order (the first call used to consume the message and make the
+  // other one return 0/"").
+  if (receivedData.deviceType == 21)
   {
     result = String(receivedData.text);
     newData = false;
@@ -3651,7 +3948,14 @@ inline String IOTBOT::espNowReadName()
 inline float IOTBOT::espNowReadNumber()
 {
   float result = 0.0f;
-  if (newData && receivedData.deviceType == 21)
+  // newData'ya bakmadan son SAYI mesajini dondur: boylece espNowReadName()
+  // ve espNowReadNumber() hangi sirayla cagrilirsa cagrilsin ikisi de dogru
+  // degeri verir (eskiden ilki mesaji tuketip digerine 0/"" dondururdu).
+  // / Return the last NUMBER message regardless of newData, so
+  // espNowReadName() and espNowReadNumber() both give the right value in
+  // any order (the first call used to consume the message and make the
+  // other one return 0/"").
+  if (receivedData.deviceType == 21)
   {
     result = receivedData.value;
     newData = false;

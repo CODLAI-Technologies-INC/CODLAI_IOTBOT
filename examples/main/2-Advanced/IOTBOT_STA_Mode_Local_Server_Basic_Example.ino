@@ -84,7 +84,10 @@ void setup()
     iotbot.lcdShowStatus("WiFi Connected", "IP: " + iotbot.wifiGetIPAddress(), true);
     iotbot.buzzerPlayTone(2000, 500);
     delay(2000);
-    iotbot.lcdWriteMid("Server Ready", "IP: " + iotbot.wifiGetIPAddress(), "Go to /demopage", "...");
+    // lcdWriteMid const char* bekler; String'i .c_str() ile ceviriyoruz.
+    // / lcdWriteMid expects const char*; convert the String with .c_str().
+    String ipLine = "IP: " + iotbot.wifiGetIPAddress();
+    iotbot.lcdWriteMid("Server Ready", ipLine.c_str(), "Go to /demopage", "...");
   }
 
   // 📌 **IOTBOT Üzerinde Web Sayfasını Yayınla**

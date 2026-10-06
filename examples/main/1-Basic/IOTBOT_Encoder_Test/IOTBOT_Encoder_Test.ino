@@ -34,6 +34,9 @@ void loop()
         iotbot.lcdWriteCR(0, 1, "Deger / Value:");
         iotbot.lcdWriteCR(15, 1, String(encoderValue));
         iotbot.lcdWriteCR(0, 2, "Buton:");
-        iotbot.lcdWriteCR(10, 2, buttonStatus ? "BASILI" : "SERBEST");
+        // encoderButtonRead() ham pin seviyesini verir: pin pull-up oldugu icin
+        // BASILIYKEN false (LOW) doner. / encoderButtonRead() returns the raw pin
+        // level: the pin is pulled up, so it is false (LOW) while PRESSED.
+        iotbot.lcdWriteCR(10, 2, !buttonStatus ? "BASILI " : "SERBEST");
     }
 }

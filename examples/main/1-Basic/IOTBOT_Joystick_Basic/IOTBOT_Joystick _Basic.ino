@@ -29,7 +29,10 @@ void loop()
     iotbot.lcdWriteCR(10, 1, "Y:");
     iotbot.lcdWriteCR(13, 1, String(yValue));
     iotbot.lcdWriteCR(0, 2, "Buton:");
-    iotbot.lcdWriteCR(7, 2, button ? "BASILI" : "SERBEST");
+    // joystickButtonRead() ham pin seviyesini verir: BASILIYKEN false (LOW)
+    // doner. / joystickButtonRead() returns the raw pin level: false (LOW)
+    // while PRESSED.
+    iotbot.lcdWriteCR(7, 2, !button ? "BASILI " : "SERBEST");
 
     delay(500);
 }

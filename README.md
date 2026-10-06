@@ -9,7 +9,16 @@ This library is specially designed and produced by the CODLAI developer team to 
 1. Open the Arduino IDE.
 2. Go to "Sketch" -> "Include Library" -> "Manage Libraries..." from the menu bar.
 3. Type "IoTBOT" in the search box.
-4. Find the IoTBOT library and click the "Install" button to complete the installation.
+4. Find the IoTBOT library and click the "Install" button to complete the installation.
+
+## Using with PlatformIO
+
+```ini
+lib_deps = samed5497kaya/CODLAI_IOTBOT
+; Firebase / e-mail (USE_FIREBASE, USE_EMAIL) not used? Skip these two big
+; libraries: faster builds and no "path too long" (260 char) errors on Windows.
+lib_ignore = Firebase Arduino Client Library for ESP8266 and ESP32, ESP Mail Client
+```
 
 ## What is IoTBOT?
 IoTBOT is an IoT-focused development board specifically designed for use in robotics coding courses. It comes with built-in basic level sensors required for IoT applications, eliminating the need for complex wiring and sensor connections.
@@ -109,7 +118,17 @@ Bu kütüphane CODLAI geliştirici ekibi tarafından IoTBOT ürününü kontrol 
 1. Arduino IDE'yi açın.
 2. Menu çubuğundan "Sketch" -> "Include Library" -> "Manage Libraries..." seçeneğine gidin.
 3. Arama kutusuna "IoTBOT" yazın.
-4. IoTBOT kütüphanesini bulun ve "Install" düğmesine tıklayarak kurulumu tamamlayın.
+4. IoTBOT kütüphanesini bulun ve "Install" düğmesine tıklayarak kurulumu tamamlayın.
+
+## PlatformIO ile Kullanım
+
+```ini
+lib_deps = samed5497kaya/CODLAI_IOTBOT
+; Firebase / e-posta (USE_FIREBASE, USE_EMAIL) kullanmiyorsaniz bu iki buyuk
+; kutuphaneyi atlayin: derleme hizlanir, Windows'ta "yol cok uzun" (260
+; karakter) hatasi olmaz.
+lib_ignore = Firebase Arduino Client Library for ESP8266 and ESP32, ESP Mail Client
+```
 
 ## IoTBOT Nedir?
 IoTBOT, özellikle robotik kodlama derslerinde kullanılmak üzere IoT odaklı geliştirilmiş bir karttır. IoT uygulamaları yapmak için gereken temel seviye sensörleri dahili olarak bulundurur ve böylece kullanıcıları karmaşık kablo ve sensör bağlantıları yapmaktan kurtarır.
