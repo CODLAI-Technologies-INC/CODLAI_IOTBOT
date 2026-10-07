@@ -4,6 +4,30 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-07
+### Added
+- **Ornekler bastan yazildi (80 ornek):** hepsi ayni kurala uyuyor - en ustte `bool turkish` ile TR/EN secimi, calisirken seri porttan `dil`/`lang` ile degisim, iki dilli ve bloklamayan seri komutlar (`yardim`/`help`). Bir seyi suren ornekler OTOMATIK gosteriyle baslar, B3 ile MANUEL moda gecilir.
+- Ornekler `Klasor/Klasor.ino` yapisina tasindi: Arduino IDE *Dosya > Ornekler* menusunde hepsi gorunur. `library.json` "examples" alani glob kullaniyor.
+- `examples/examples.json`: her ornegin yolu, karti, gereken moduller/ayarlar, TR/EN ozeti ve seri komutlari (editor.codlai.com "Kutuphane Ornekleri" ekrani icin; `scripts/generate_examples_json.py` ile uretilir).
+- ESP-NOW deviceType 40-49 kutuphane orneklerinin kart kimliklerine ayrildi (40 IOTBOT, 41 MINIBOT, 42 ROLEBOT); ornekler artik 10/20/30 tiplerini paylasmiyor.
+
+### Fixed
+- `serverStart`: STA baglanamazsa acilan yedek AP artik modemin adini/sifresini kopyalamiyor - sabit `CODLAI-IOTBOT` adiyla acilir (sifre 8 karakterden kisaysa `12345678`). AP modunda 1-7 karakterlik sifre sessizce basarisiz oluyordu, artik `12345678` kullaniliyor. **Yedek agin adi degisti.**
+- `serverCreateLocalPage` / `serverOnRequest`: "/" adresi "//" oluyordu; kullanici "/" tanimlayinca varsayilan "CODLAI Server is Running!" sayfasi kaldiriliyor (kullanicinin ana sayfasi gorunmuyordu). "sayfa" ve "/sayfa" ayni. DNS yonlendirmesi AP+STA modunda da calisiyor.
+- `sendTelegram`: mesaj tam UTF-8 %XX kodlaniyor (eskiden sadece bosluk; Turkce harf, `&`, `#`, `+` mesaji bozuyordu). `getWeather` sehir adini, `getWikipedia` basligi kodluyor. Yeni `urlEncode()` yardimcisi. Sketch'te onceden kodlamayin.
+- `getWeather` (OpenWeatherMap): `http://` yerine `https://` (anahtar acik gitmiyor / istek basarisiz oluyordu).
+- `wifiStartAndConnect` WiFi sifresini seri porta acik yazmiyor; `wifiConnectionControl` seri portu sadece durum degisince yaziyor (loop icinde doldurmuyordu).
+- `eepromReadInt` isaretli 16 bit donuyor: -5 yazilip 65531 okunuyordu; hic yazilmamis alan 65535 yerine -1. `eepromReadString` hic yazilmamis alanda cop yerine "" donuyor.
+- **`moduleRFIDRead` kart ID'si degisti:** UID baytlari ondalik metin olarak birlestirilip int'e cevriliyordu - 32 bit'e sigmiyor, farkli kartlar ayni ID'yi verebiliyordu. Artik ilk 4 UID bayti 32 bit sayi (7/10 baytlik UID'lerde kalan baytlar karistirilir). **Eski surumle kaydedilen kart ID'leri gecersiz - kartlari yeniden okutun.**
+- `moduleStepMotorMotion`: her cagrida yeni Stepper nesnesi kuruluyor, bobin fazi 0'dan basliyordu - parcali hareketlerde motor geri sicriyor, 4'ten kisa adimlar hic ilerlemiyordu. Faz ve zamanlama artik cagrilar arasinda korunuyor.
+- `moduleSmartLEDBreathe`: Adafruit setBrightness(0) renkleri sildigi icin LED'ler hic yanmiyordu; parlaklik elle olcekleniyor, efekt bitince LED'ler onceki haline donuyor. `getColor` ve Prepare oncesi `moduleSmartLED*` cagrilari artik cokmuyor; Prepare tekrar cagrilinca bellek sizmiyor.
+- `ntpUpdate`: saat zaten gecerliyse sunucuya hic sormadan true donuyordu; artik gercekten yeniden senkronluyor (en fazla 10 sn).
+- `lcdWriteFixedTxt`: genisligi asan metin ve bosluk doldurma kirpiliyor (uzun metin baska satira tasiyordu). `lcdShowLoading`/`lcdShowStatus` 20 karakterden uzun metinde imleci ekran disina gonderiyordu.
+- `moduleNtcTempRead`: sensor takili degil/kisa devrede -273/nan yerine -999 (DHT ile ayni hata degeri). `moduleUltrasonicDistanceRead`: 0 = gecerli olcum yok (yanki yok ya da 400 cm uzeri).
+- `USE_EMAIL` tek basina LittleFS bulamayip link hatasi veriyordu; LittleFS artik USE_EMAIL ile de ekleniyor.
+- `bluetoothRead` her mesajda ~1 sn donuyordu (Stream zaman asimi 1000 ms -> 40 ms). `getWeather`'da HTTPClient yok olmus istemciye erisiyordu (yikim sirasi).
+- `fbServerSetandStartWithUser`: 2. parametre Web API Key (aciklama yanlislikla Database Secret diyordu); seri mesajlar TR/EN.
+
 ## [1.7.3] - 2026-09-29
 ### Fixed
 - CodlaiESPNowMessage aciklamasi: deviceType 22-29 editor.codlai.com ozel/eslesmeli mesajlasma bloklarina rezerve edildi (22 ozel metin, 23 ozel sayi, 24 eslesme teklifi, 25 eslesme kabulu; 26-29 bos). Kutuphane davranisi degismedi - `espNowAvailable()` hala yalniz 20/21'i gorur.

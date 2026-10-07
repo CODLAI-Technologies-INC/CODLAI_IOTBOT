@@ -19,6 +19,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 #include <time.h>
+#include <esp_sntp.h>     // ntpUpdate: gercek senkron durumu / real sync status (sntp_get_sync_status)
 #include <soc/gpio_reg.h>     // GPIO_ENABLE_REG vb. - servo/IR pin durumu kontrolu / pin state checks for servo/IR
 #include <soc/gpio_sig_map.h> // SIG_GPIO_OUT_IDX
 
@@ -26,8 +27,13 @@
 #include <Stepper.h>
 #endif
 
-#if defined(USE_FIREBASE)
-#include <LittleFS.h> // Firebase_ESP_Client bunu bekliyor
+#if defined(USE_FIREBASE) || defined(USE_EMAIL)
+// Firebase_ESP_Client ve ESP_Mail_Client bunu bekliyor; PlatformIO'nun LDF'si
+// LittleFS'i ancak sketch'in derledigi bir dosyada include edilince bulur
+// (yoksa USE_EMAIL'de link hatasi). / Firebase_ESP_Client and ESP_Mail_Client
+// expect it; PlatformIO's LDF only finds LittleFS when it is included from a
+// compiled file (otherwise USE_EMAIL fails to link).
+#include <LittleFS.h>
 #endif
 
 // Feature dependent includes
@@ -123,7 +129,7 @@
 #ifndef CODLAI_ESPNOW_MESSAGE_DEFINED
 #define CODLAI_ESPNOW_MESSAGE_DEFINED
 typedef struct {
-  uint8_t deviceType; // 1=Armbot komutu, 2=Carbot komutu, 3=Carbot telemetrisi (axis3=mesafe cm, -1=bilinmiyor), 4=Armbot sinyali, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji, 22-29=REZERVE: editor.codlai.com ozel/eslesmeli mesajlasma bloklari (22 ozel metin, 23 ozel sayi, 24 eslesme teklifi, 25 eslesme kabulu; axis1=grup, axis2/axis3=hedef MAC, her zaman yayinla gonderilir, suzgec alicida), 30-39=REZERVE: CODLAI Robotlari Otonom projesi (30 eslesme teklifi, 31 eslesme kabul, 32 mod, 33 durum)
+  uint8_t deviceType; // 1=Armbot komutu, 2=Carbot komutu, 3=Carbot telemetrisi (axis3=mesafe cm, -1=bilinmiyor), 4=Armbot sinyali, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji, 22-29=REZERVE: editor.codlai.com ozel/eslesmeli mesajlasma bloklari (22 ozel metin, 23 ozel sayi, 24 eslesme teklifi, 25 eslesme kabulu; axis1=grup, axis2/axis3=hedef MAC, her zaman yayinla gonderilir, suzgec alicida), 30-39=REZERVE: CODLAI Robotlari Otonom projesi (30 eslesme teklifi, 31 eslesme kabul, 32 mod, 33 durum), 40-49=kutuphane orneklerinin kart kimlikleri / library example board IDs (40 IOTBOT, 41 MINIBOT, 42 ROLEBOT; Broadcast_Simple / Pair / SmartLED_Remote ornekleri / examples)
   int axis1;
   int axis2;
   int axis3;
@@ -328,6 +334,8 @@ public:
   uint8_t eepromReadByte(int address, uint8_t defaultValue = 0);
 
   // NOTE: eepromWriteInt/eepromReadInt store 16-bit (2 bytes) for backward compatibility.
+  // eepromReadInt returns it SIGNED (-32768..32767); empty (0xFF) EEPROM reads -1.
+  // eepromReadString returns "" on empty (0xFF) EEPROM.
   void eepromWriteInt(int address, int value);
   int eepromReadInt(int address);
 
@@ -422,7 +430,10 @@ public:
    */
 #if defined(USE_FIREBASE)
   // 📡 Firebase Server Functions
-  void fbServerSetandStartWithUser(const char *projectURL, const char *secretKey, const char *userMail, const char *mailPass); // projectURL: YOUR_FIREBASE_PROJECT_ID.firebaseio.com / secretKey: YOUR_FIREBASE_DATABASE_SECRET
+  // projectURL: "YOUR_PROJECT_ID-default-rtdb.firebaseio.com" (Realtime Database adresi / URL)
+  // apiKey: Web API Key (Proje ayarlari > Genel / Project settings > General) - Database Secret DEGIL / NOT the Database Secret
+  // userMail / mailPass: Authentication > Users'ta (E-posta/Sifre) olusturulan kullanici / user created under Authentication > Users (Email/Password)
+  void fbServerSetandStartWithUser(const char *projectURL, const char *apiKey, const char *userMail, const char *mailPass);
 
   // 🔄 Firebase Database Write Functions
   void fbServerSetInt(const char *dataPath, int data);
@@ -475,7 +486,7 @@ public:
   // gecerli degilse okuma fonksiyonlari -1 (metinler "--") dondurur.
   // EN: start with ntpBegin(3) (Turkey UTC+3; connect to WiFi first). While the
   // time is not valid, the getters return -1 (strings return "--").
-  bool ntpUpdate();                  // Saati SIMDI yeniden cek (son ayarlarla) / re-sync NOW (last settings)
+  bool ntpUpdate();                  // Saati SIMDI sunucudan yeniden cek (son ayarlarla, en fazla 10 sn bekler); basarili mi / re-sync NOW from the server (last settings, waits max 10 s); success?
   int ntpGetHour();                  // 0-23
   int ntpGetMinute();                // 0-59
   int ntpGetSecond();                // 0-59
@@ -554,9 +565,23 @@ public:
   float espNowReadNumber();
 #endif
 
+  /*********************************** URL kodlama / URL encoding ***********************************
+   */
+#if defined(USE_TELEGRAM) || defined(USE_WEATHER) || defined(USE_WIKIPEDIA) || defined(USE_IFTTT)
+  // Metni URL icin UTF-8 %XX bicimine cevirir (A-Z a-z 0-9 - _ . ~ aynen kalir;
+  // bosluk -> %20, "ç" -> %C3%A7, "&" -> %26). sendTelegram/getWeather/
+  // getWikipedia bunu ZATEN kendileri yapar - onlara kodlanmamis duz metin verin.
+  // / Converts text to UTF-8 %XX form for a URL (A-Z a-z 0-9 - _ . ~ are kept;
+  // space -> %20, "ç" -> %C3%A7, "&" -> %26). sendTelegram/getWeather/
+  // getWikipedia ALREADY do this themselves - pass them plain, unencoded text.
+  static String urlEncode(const String &text);
+#endif
+
   /*********************************** Telegram ***********************************
    */
 #if defined(USE_TELEGRAM)
+  // message: duz metin (Turkce harf, bosluk, &, satir sonu olabilir); kutuphane kodlar.
+  // / message: plain text (Turkish letters, spaces, &, newlines are fine); the library encodes it.
   void sendTelegram(String token, String chatId, String message);
 #endif
 
@@ -633,6 +658,17 @@ private:
   bool _eepromEnsure(size_t minSize);
 
   int _bpm = 120; // buzzerPlayMelody icin tempo (vurus/dakika) / tempo for buzzerPlayMelody (beats per minute)
+
+#if defined(USE_WIFI)
+  int8_t _wifiLastState = -1; // wifiConnectionControl: son yazilan durum (-1 = henuz yok) / last printed state (-1 = none yet)
+#endif
+
+#if defined(USE_STEP_MOTOR)
+  // moduleStepMotorMotion: cagrilar arasinda korunan bobin fazi ve son adim
+  // zamani / coil phase and last step time kept between calls
+  uint8_t _stepPhase = 0;
+  unsigned long _stepLastUs = 0;
+#endif
   int _noteToFrequency(const char *note);
 
   void createTurkishChars();
@@ -653,11 +689,14 @@ private:
 
 #if defined(USE_DHT)
   void initializeDht(int pin, uint8_t type);
-  DHT *dhtSensor; // Pointer to DHT sensor object
+  DHT *dhtSensor = nullptr; // Pointer to DHT sensor object (initializeDht "if (!dhtSensor)" buna guvenir / relies on this)
 #endif
 
 #if defined(USE_NEOPIXEL)
-  Adafruit_NeoPixel *pixels; // NeoPixel object pointer
+  // nullptr ile baslat: Prepare'den once cagrilan moduleSmartLED* fonksiyonlari
+  // "if (pixels)" ile guvenle hicbir sey yapmasin (yerel nesnede cop deger olmasin).
+  // / Start as nullptr so moduleSmartLED* calls before Prepare safely do nothing.
+  Adafruit_NeoPixel *pixels = nullptr; // NeoPixel object pointer
 #endif
 
 #if defined(USE_IR)
@@ -681,6 +720,9 @@ private:
   DNSServer dnsServer;                              // DNS sunucusu tanımlanıyor / Define DNS Server
   AsyncWebServer serverCODLAI{80};                  // Web server objesi
   AsyncWebSocket *serverCODLAIWebSocket;            // Pointer olarak tanımla
+  AsyncCallbackWebHandler *_serverRootHandler = nullptr; // Varsayilan "/" sayfasi / default "/" page
+  bool _serverUserRoot = false;                          // Kullanici "/" tanimladi mi / user registered "/"
+  String _serverPrepareUrl(const char *url);
 #endif
 
 #if defined(USE_FIREBASE)
@@ -1324,7 +1366,12 @@ inline void IOTBOT::lcdtest()
 inline void IOTBOT::lcdShowLoading(String message) {
     lcd.clear();
     message = convertTR(message);
-    lcd.setCursor((20 - message.length()) / 2, 1);
+    // length() isaretsiz: 20 karakterden uzun metinde (20 - uzunluk) dev bir
+    // sayi oluyordu -> imlec ekran disina gidiyordu. Kirp ve sutunu sinirla.
+    // / length() is unsigned: for text > 20 chars (20 - len) wrapped to a huge
+    // column. Truncate and clamp the column.
+    if (message.length() > 20) message = message.substring(0, 20);
+    lcd.setCursor((20 - (int)message.length()) / 2, 1);
     lcd.print(message);
     
     for(int i=0; i<3; i++) {
@@ -1347,11 +1394,15 @@ inline void IOTBOT::lcdShowStatus(String title, String status, bool isSuccess) {
     lcd.clear();
     title = convertTR(title);
     status = convertTR(status);
-    
-    lcd.setCursor((20 - title.length()) / 2, 0);
+    // Ortalama isaretsiz aritmetikle tasiyordu (bkz. lcdShowLoading): kirp.
+    // / Centring overflowed with unsigned math (see lcdShowLoading): truncate.
+    if (title.length() > 20) title = title.substring(0, 20);
+    if (status.length() > 20) status = status.substring(0, 20);
+
+    lcd.setCursor((20 - (int)title.length()) / 2, 0);
     lcd.print(title);
-    
-    lcd.setCursor((20 - status.length()) / 2, 2);
+
+    lcd.setCursor((20 - (int)status.length()) / 2, 2);
     lcd.print(status);
     
     lcd.setCursor(8, 3);
@@ -1736,24 +1787,60 @@ inline void IOTBOT::encodertest()
 #if defined(USE_STEP_MOTOR)
 /*********************************** Stepper Motor Motion ***********************************
  * Controls the stepper motor.
+ * step: Steps per revolution of the motor (only used for the speed).
  * rotation: True for clockwise, false for counterclockwise.
  * accelometer: Number of steps to move.
  * speed: Speed of the stepper motor in RPM.
  */
 inline void IOTBOT::moduleStepMotorMotion(int step, bool rotation, int accelometer, int speed)
 {
-  // Stepper motor object (shared across the library)
-  Stepper stepMotor(step, IO26, IO33, IO32, IO27); // 50 steps per revolution, pins 26, 33, 32, 27
+  // ESKIDEN her cagrida yeni bir Stepper nesnesi kuruluyordu: bobin fazi
+  // her seferinde 0'dan basliyordu. Hareket 4'un kati olmayan adimlarla
+  // parcalaninca motor her cagrinin basinda GERIYE sicriyordu, 4'ten kucuk
+  // parcalar hic ilerlemiyordu; "step" (tur basina adim) 4'un kati degilse
+  // Stepper'in tur sonu sarmasi da bir faz atliyordu. Artik faz (0-3) ve son
+  // adim zamani cagrilar arasinda SAKLANIYOR; bobin sirasi (1010, 0110,
+  // 0101, 1001) ve hiz formulu (60e6 / step / speed us) Stepper kutuphanesiyle
+  // AYNI. Bobinleri disaridan LOW yapmak (bosta birakmak) sorun degil:
+  // sonraki adim kalinan fazdan devam eder.
+  // / BEFORE, a new Stepper object was built on every call, so the coil phase
+  // restarted at 0 each time: moves split into chunks that are not a multiple
+  // of 4 made the motor jerk BACKWARDS at the start of each call, chunks < 4
+  // steps did not move at all, and if "step" (steps per revolution) was not a
+  // multiple of 4 Stepper's end-of-turn wrap skipped a phase. Now the phase
+  // (0-3) and the last step time are KEPT between calls; the coil sequence
+  // (1010, 0110, 0101, 1001) and the speed formula (60e6 / step / speed us)
+  // are the SAME as the Stepper library. Releasing the coils from outside
+  // (writing them LOW) is fine: the next step continues from the kept phase.
+  if (step <= 0 || speed <= 0 || accelometer == 0)
+    return; // 0'a bolme olmasin / avoid division by zero
 
-  stepMotor.setSpeed(speed); // Set the speed of the stepper motor
+  static const uint8_t coilPins[4] = {IO26, IO33, IO32, IO27};
+  static const uint8_t pattern[4] = {0b1010, 0b0110, 0b0101, 0b1001}; // pin1..pin4 (MSB = pin1)
+  for (uint8_t i = 0; i < 4; i++)
+    pinMode(coilPins[i], OUTPUT); // Pin baska bir modul icin kullanildiysa / in case another module used the pin
 
-  if (rotation)
+  const unsigned long stepDelayUs = 60UL * 1000UL * 1000UL / (unsigned long)step / (unsigned long)speed;
+  int stepsToMove = rotation ? accelometer : -accelometer;
+  const bool forward = stepsToMove > 0;
+  int stepsLeft = abs(stepsToMove);
+
+  while (stepsLeft > 0)
   {
-    stepMotor.step(accelometer); // Move forward (clockwise)
-  }
-  else
-  {
-    stepMotor.step(-accelometer); // Move backward (counterclockwise)
+    unsigned long now = micros();
+    if (now - _stepLastUs >= stepDelayUs)
+    {
+      _stepLastUs = now;
+      _stepPhase = forward ? ((_stepPhase + 1) & 3) : ((_stepPhase + 3) & 3);
+      const uint8_t bits = pattern[_stepPhase];
+      for (uint8_t i = 0; i < 4; i++)
+        digitalWrite(coilPins[i], (bits >> (3 - i)) & 1 ? HIGH : LOW);
+      stepsLeft--;
+    }
+    else
+    {
+      yield();
+    }
   }
 }
 #endif
@@ -1828,6 +1915,8 @@ inline void IOTBOT::moduleDCMotorBrake()
 /*********************************** NTC Temp Sensor ***********************************
  * Reads the NTC temperature sensor value and calculates the temperature in Celsius.
  * pin: The analog pin where the NTC is connected.
+ * Returns -999 if the sensor is unplugged/shorted (ADC 0 or 4095).
+ * Sensor takili degil/kisa devre ise (ADC 0 ya da 4095) -999 dondurur.
  */
 inline float IOTBOT::moduleNtcTempRead(int pin)
 {
@@ -1842,6 +1931,15 @@ inline float IOTBOT::moduleNtcTempRead(int pin)
 
   // Read the analog value from the pin
   int analogValue = analogRead(pin);
+
+  // ADC 0 (sensor takili degil/acik devre) ya da 4095 (kisa devre) iken
+  // formul 0'a bolup -273 / nan gibi anlamsiz degerler veriyordu. Bu
+  // durumda DHT fonksiyonlariyla AYNI hata degeri -999 dondurulur.
+  // / With ADC 0 (unplugged/open) or 4095 (shorted) the formula divided by
+  // zero and gave nonsense like -273 / nan. Now it returns -999, the SAME
+  // error value as the DHT functions.
+  if (analogValue <= 0 || analogValue >= 4095)
+    return -999.0f;
 
   // Convert the analog value to resistance
   float resistance = SERIES_RESISTOR / ((4095.0 / analogValue) - 1.0);
@@ -1940,7 +2038,8 @@ inline int IOTBOT::moduleVibrationAnalogRead(int pin)
 /*********************************** Ultrasonic Distance Sensor ***********************************
  * Reads distance from the ultrasonic sensor using echo and trigger pins.
  * Automatically adjusts for ESP32 and ESP8266 platforms.
- * Returns 0 if the distance exceeds the maximum measurable range (400 cm).
+ * Returns 0 if there is no valid reading: no echo, or more than 400 cm.
+ * Gecerli olcum yoksa 0 dondurur: yanki yok ya da 400 cm'den uzak.
  */
 inline int IOTBOT::moduleUltrasonicDistanceRead()
 {
@@ -1968,20 +2067,22 @@ inline int IOTBOT::moduleUltrasonicDistanceRead()
   // Measure the duration of the echo pulse
   long duration = pulseIn(ECHO_PIN, HIGH, MAX_DISTANCE * 58); // Timeout for MAX_DISTANCE
 
-  // If no echo is received, return 0 (out of range)
+  // 0 TEK bir anlama gelir: "gecerli olcum yok" - yanki gelmedi (onunde
+  // 400 cm icinde cisim yok / sensor takili degil) YA DA olcum 400 cm'yi
+  // asti. Ornekler 0'i "menzil disi" olarak kullanir (HC-SR04 zaten ~2 cm
+  // altini olcemez, bu yuzden gercek bir olcumle karismaz).
+  // / 0 has ONE meaning: "no valid reading" - no echo (nothing within 400 cm /
+  // sensor unplugged) OR the reading exceeded 400 cm. Examples treat 0 as "out
+  // of range" (the HC-SR04 cannot measure below ~2 cm anyway, so it never
+  // clashes with a real reading).
   if (duration == 0)
-  {
-    return 0; // Out of range or no object detected
-  }
+    return 0;
 
   // Calculate the distance in centimeters
   int distance = duration * 0.034 / 2; // Sound speed: 0.034 cm/µs, divide by 2 for round trip
 
-  // If the calculated distance exceeds the maximum range, return 0
   if (distance > MAX_DISTANCE)
-  {
-    return 000;
-  }
+    return 0; // Menzil disi / out of range
 
   return distance; // Return the measured distance
 }
@@ -2295,7 +2396,13 @@ inline int IOTBOT::eepromReadInt(int address) // EEPROM'dan int türünde veri o
 
   uint8_t hi = EEPROM.read(address);     // İlk baytı oku
   uint8_t lo = EEPROM.read(address + 1); // İkinci baytı oku
-  return word(hi, lo);                   // Yüksek ve düşük baytları birleştirerek int değeri oluştur
+  // word() isaretsiz: eskiden -5 yazilip 65531 okunuyordu. eepromWriteInt
+  // 16 bit yazdigi icin isaretli 16 bit olarak geri ver (-32768..32767).
+  // Hic yazilmamis (0xFF) EEPROM artik 65535 yerine -1 okunur.
+  // / word() is unsigned: -5 used to come back as 65531. eepromWriteInt stores
+  // 16 bits, so return it as signed 16-bit (-32768..32767). A never-written
+  // (0xFF) EEPROM now reads -1 instead of 65535.
+  return (int16_t)word(hi, lo);
 }
 
 inline bool IOTBOT::eepromWriteInt32(int address, int32_t value)
@@ -2488,6 +2595,15 @@ inline String IOTBOT::eepromReadString(int address, uint16_t maxLen)
 
   uint16_t len = 0;
   EEPROM.get(address, len);
+
+  // Hic yazilmamis (silinmis, 0xFF dolu) EEPROM'da uzunluk 0xFFFF okunur;
+  // eskiden maxLen kadar 0xFF "cop" karakter donuyordu. Artik bos metin.
+  // / On never-written (erased, 0xFF) EEPROM the length reads 0xFFFF; it used
+  // to return maxLen garbage 0xFF chars. Now an empty string.
+  if (len == 0xFFFF)
+  {
+    return String("");
+  }
 
   if (len > maxLen)
   {
@@ -2739,7 +2855,28 @@ inline bool IOTBOT::_ntpLocalTime(struct tm &out)
 
 inline bool IOTBOT::ntpUpdate()
 {
-  return ntpSync(_ntpServer.c_str(), _ntpGmtOffsetSec, _ntpDaylightOffsetSec, 10000);
+  // ESKIDEN ntpSync'e gidiyordu; o da saat ZATEN gecerliyse (ilk senkrondan
+  // sonra hep) sunucuya hic sormadan hemen true donuyordu. Artik senkron
+  // durumu sifirlanip SNTP yeniden baslatiliyor ve sunucudan GERCEKTEN yeni
+  // bir cevap gelene kadar (en fazla 10 sn) bekleniyor. Donus: yeni senkron
+  // basarili mi (false olsa da eski saat calismaya devam eder).
+  // / It used to call ntpSync, which returned true at once WITHOUT asking the
+  // server whenever the time was ALREADY valid (always, after the first sync).
+  // Now the sync status is reset, SNTP restarted, and it waits (max 10 s) for
+  // a REAL fresh answer. Returns whether the fresh sync succeeded (on false
+  // the old clock keeps running).
+  sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
+  configTime(_ntpGmtOffsetSec, _ntpDaylightOffsetSec, _ntpServer.c_str());
+  const uint32_t startMs = millis();
+  while ((millis() - startMs) < 10000UL)
+  {
+    if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED && time(nullptr) >= _NTP_VALID_EPOCH)
+    {
+      return true;
+    }
+    delay(50);
+  }
+  return false;
 }
 
 inline int IOTBOT::ntpGetHour()
@@ -3067,6 +3204,12 @@ inline int IOTBOT::moduleDhtHumRead(int pin) // Read Humidity
 #if defined(USE_NEOPIXEL)
 inline void IOTBOT::extendSmartLEDPrepare(int pin, int numLEDs)
 {
+  // Onceki nesneyi serbest birak (bkz. moduleSmartLEDPrepare) / free the previous object (see moduleSmartLEDPrepare)
+  if (pixels)
+  {
+    delete pixels;
+    pixels = nullptr;
+  }
   // Create a new Adafruit_NeoPixel object dynamically
   pixels = new Adafruit_NeoPixel(numLEDs, pin, NEO_GRB + NEO_KHZ800);
   pixels->begin(); // Initialize the NeoPixel strip
@@ -3111,7 +3254,11 @@ inline void IOTBOT::moduleSmartLEDWrite(int led, int red, int green, int blue)
 
 inline uint32_t IOTBOT::getColor(int red, int green, int blue)
 {
-  return pixels->Color(red, green, blue);
+  // Color() statik bir fonksiyon: moduleSmartLEDPrepare'den ONCE de
+  // calissin diye nesne isaretcisi (o an nullptr) uzerinden cagrilmiyor.
+  // / Color() is static: called without the object pointer (still nullptr
+  // before moduleSmartLEDPrepare) so it also works before preparing.
+  return Adafruit_NeoPixel::Color(constrain(red, 0, 255), constrain(green, 0, 255), constrain(blue, 0, 255));
 }
 
 inline void IOTBOT::moduleSmartLEDRainbowEffect(int wait)
@@ -3208,6 +3355,15 @@ inline void IOTBOT::moduleSmartLEDClear()
 
 inline void IOTBOT::moduleSmartLEDSetBrightness(int brightness)
 {
+  // NOT: Adafruit setBrightness kayiplidir - o an yanan renkleri yeni
+  // parlakliga olcekler; 0 verilirse saklanan renkler SILINIR (sonra
+  // parlaklik artirilsa da LED'ler sonuk kalir). Parlakligi degistirdikten
+  // sonra rengi tekrar yazin (Fill/Write); yeni yazilan renkler bu
+  // parlaklikla gosterilir.
+  // / NOTE: Adafruit setBrightness is lossy - it rescales the colors already
+  // shown; 0 ERASES the stored colors (raising it later leaves the LEDs dark).
+  // Write the color again (Fill/Write) after changing brightness; newly
+  // written colors are shown at this brightness.
   if (pixels)
   {
     pixels->setBrightness(constrain(brightness, 0, 255));
@@ -3240,22 +3396,42 @@ inline void IOTBOT::moduleSmartLEDBreathe(int red, int green, int blue, int ms)
   if (stepDelay < 1)
     stepDelay = 1;
 
-  uint32_t color = pixels->Color(red, green, blue);
-  pixels->fill(color);
+  // ESKIDEN Adafruit setBrightness() ile yapiliyordu; ama setBrightness
+  // kayipli: ilk adimdaki setBrightness(0) tampondaki renkleri SIFIRLIYOR ve
+  // sonraki adimlar 0'i buyutemedigi icin LED'ler hic yanmiyordu. Artik
+  // parlaklik (setBrightness'a dokunmadan) renk degerleri elle olceklenerek
+  // degistiriliyor; kullanicinin moduleSmartLEDSetBrightness ayari korunur ve
+  // efekt bitince LED'ler efektten ONCEKI haline geri doner.
+  // / This used to call Adafruit setBrightness(), which is lossy: the first
+  // setBrightness(0) ZEROED the stored colors and later steps could not scale
+  // 0 back up, so the LEDs never lit. Now the color values are scaled by hand
+  // (setBrightness untouched): the user's moduleSmartLEDSetBrightness level is
+  // kept and the LEDs return to their state from BEFORE the effect.
+  red = constrain(red, 0, 255);
+  green = constrain(green, 0, 255);
+  blue = constrain(blue, 0, 255);
+  const size_t numBytes = (size_t)pixels->numPixels() * 3; // NEO_GRB: LED basina 3 bayt / 3 bytes per LED
+  uint8_t *saved = (uint8_t *)malloc(numBytes);
+  if (saved)
+    memcpy(saved, pixels->getPixels(), numBytes);
 
-  for (int b = 0; b <= 255; b += (255 / steps))
+  for (int i = 0; i <= 2 * steps; i++)
   {
-    pixels->setBrightness(b);
+    int level = (i <= steps) ? i : (2 * steps - i); // 0 -> steps -> 0
+    pixels->fill(Adafruit_NeoPixel::Color(red * level / steps, green * level / steps, blue * level / steps));
     pixels->show();
     delay(stepDelay);
   }
-  for (int b = 255; b >= 0; b -= (255 / steps))
+
+  if (saved)
   {
-    pixels->setBrightness(b);
-    pixels->show();
-    delay(stepDelay);
+    memcpy(pixels->getPixels(), saved, numBytes); // Onceki hali geri yukle / restore the previous state
+    free(saved);
   }
-  pixels->setBrightness(255); // Sonraki cagrilar icin tam parlakliga geri don / restore full brightness for subsequent calls
+  else
+  {
+    pixels->clear();
+  }
   pixels->show();
 }
 #endif
@@ -3279,22 +3455,44 @@ inline int IOTBOT::moduleRFIDRead()
     beginRFID();
   }
 
-  String rfidNum = "";
-
   if (!rfid.PICC_IsNewCardPresent())
     return 0;
   if (!rfid.PICC_ReadCardSerial())
     return 0;
 
-  for (byte i = 0; i < 4; i++)
+  // ESKIDEN UID baytlari ondalik metin olarak yan yana eklenip toInt()
+  // yapiliyordu: 12 haneye kadar cikan sayi 32 bit int'e SIGMIYORDU (farkli
+  // kartlar ayni ID'yi verebiliyordu) ve "1,23" ile "12,3" ayni sonucu
+  // veriyordu. Artik ilk 4 UID bayti buyuk-endian 32 bit sayi olarak
+  // donduruluyor (ornek: 9A 2B 3C 4D -> 0x9A2B3C4D, int olarak negatif
+  // gorunebilir); 7/10 baytlik UID'lerde kalan baytlar basit bir karma ile
+  // katilir. DIKKAT: eski surumlerle kaydedilen kart ID'leri ARTIK FARKLI -
+  // kartlari yeniden okutup yeni ID'yi kodunuza yazin.
+  // / BEFORE, the UID bytes were joined as decimal text and toInt()'ed: the up
+  // to 12-digit number OVERFLOWED a 32-bit int (different cards could collide)
+  // and "1,23" equalled "12,3". Now the first 4 UID bytes are returned as a
+  // big-endian 32-bit value (e.g. 9A 2B 3C 4D -> 0x9A2B3C4D, may look negative
+  // as int); for 7/10-byte UIDs the remaining bytes are folded in with a simple
+  // hash. NOTE: card IDs saved with older versions are NOW DIFFERENT - scan the
+  // cards again and put the new IDs in your code.
+  uint8_t uidSize = rfid.uid.size;
+  if (uidSize > sizeof(rfid.uid.uidByte))
+    uidSize = sizeof(rfid.uid.uidByte);
+  uint32_t id = 0;
+  for (uint8_t i = 0; i < uidSize; i++)
   {
-    rfidNum += String(rfid.uid.uidByte[i]);
+    if (i < 4)
+      id = (id << 8) | rfid.uid.uidByte[i];
+    else
+      id = ((id << 5) | (id >> 27)) ^ rfid.uid.uidByte[i]; // dondur + XOR / rotate + XOR
   }
+  if (id == 0)
+    id = 1; // 0 "kart yok" demek / 0 means "no card"
 
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
 
-  return rfidNum.toInt();
+  return (int)id;
 }
 #endif
 
@@ -3362,7 +3560,11 @@ inline int IOTBOT::moduleIRReadDecimalx8(int pin) // Read IR signal as only the 
 #if defined(USE_WIFI)
 inline void IOTBOT::wifiStartAndConnect(const char *ssid, const char *pass)
 {
-  Serial.printf("[WiFi]: Connection Starting!\r\n[WiFi]: SSID: %s\r\n[WiFi]: Pass: %s\r\n", ssid, pass);
+  // Sifre artik seri porta ACIK yazilmiyor (ekran paylasimi/kayitlarda
+  // sizmasin); sadece uzunlugu gosterilir. / The password is no longer printed
+  // in clear to Serial (so it doesn't leak in screen shares/logs); only its length.
+  size_t passLen = pass ? strlen(pass) : 0;
+  Serial.printf("[WiFi]: Connection Starting!\r\n[WiFi]: SSID: %s\r\n[WiFi]: Pass: %s (%u)\r\n", ssid, passLen ? "********" : "(none)", (unsigned)passLen);
 
   WiFi.begin(ssid, pass);
   int count = 0;
@@ -3384,16 +3586,18 @@ inline void IOTBOT::wifiStartAndConnect(const char *ssid, const char *pass)
 
 inline bool IOTBOT::wifiConnectionControl()
 {
-  if (WiFi.status() == WL_CONNECTED)
+  // Eskiden HER cagrida bir satir yaziyordu - loop() icinde seri portu
+  // dolduruyordu. Artik sadece durum DEGISINCE (ve ilk cagrida) yazar.
+  // / Used to print a line on EVERY call - flooding Serial from loop(). Now it
+  // prints only when the state CHANGES (and on the first call).
+  bool connected = (WiFi.status() == WL_CONNECTED);
+  int8_t state = connected ? 1 : 0;
+  if (state != _wifiLastState)
   {
-    Serial.println("[WiFi]: Connection OK!");
-    return true;
+    _wifiLastState = state;
+    Serial.println(connected ? "[WiFi]: Connection OK!" : "[WiFi]: Connection ERROR!");
   }
-  else
-  {
-    Serial.println("[WiFi]: Connection ERROR!");
-    return false;
-  }
+  return connected;
 }
 
 inline String IOTBOT::wifiGetMACAddress()
@@ -3491,28 +3695,60 @@ inline void IOTBOT::serverStart(const char *mode, const char *ssid, const char *
     }
     else
     {
-      Serial.println("\n[STA Mode]: Connection Failed! Switching to AP Mode...");
-      serverStart("AP", ssid, password);
+      // ESKIDEN yedek AP, modem SSID'si ve sifresiyle aciliyordu: modemle ayni
+      // isimde sahte bir ag olusuyordu ve sifre 8 karakterden kisaysa softAP
+      // hic acilmiyordu. Artik sabit "CODLAI-IOTBOT" adiyla acilir; verilen
+      // sifre 8 karakterden kisaysa varsayilan "12345678" kullanilir. STA
+      // denemesi durdurulur (arka planda kanal degistirip AP'yi koparmasin).
+      // / BEFORE, the fallback AP used the router's SSID and password: it
+      // created a fake network with the router's name, and with a password
+      // shorter than 8 chars softAP did not start at all. Now it always uses
+      // the name "CODLAI-IOTBOT"; if the given password is shorter than 8 chars
+      // the default "12345678" is used. The STA attempt is stopped (so it does
+      // not hop channels in the background and drop the AP).
+      Serial.println("\n[STA Mode]: Baglanti basarisiz! Yedek AP aciliyor... / Connection Failed! Starting fallback AP...");
+      WiFi.disconnect();
+      WiFi.mode(WIFI_AP);
+      const char *fallbackPass = (password && strlen(password) >= 8) ? password : "12345678";
+      serverStart("AP", "CODLAI-IOTBOT", fallbackPass);
       return;
     }
   }
   else if (strcmp(mode, "AP") == 0)
   {
+    // WPA2 sifresi en az 8 karakter olmali; 1-7 karakterde softAP sessizce
+    // basarisiz oluyordu. Bos sifre = sifresiz (acik) ag.
+    // / A WPA2 password must be at least 8 chars; with 1-7 chars softAP failed
+    // silently. An empty password = open network.
+    if (password && password[0] != '\0' && strlen(password) < 8)
+    {
+      Serial.println("[AP Mode]: Sifre 8 karakterden kisa, varsayilan \"12345678\" kullaniliyor / Password shorter than 8 chars, using the default \"12345678\"");
+      password = "12345678";
+    }
     WiFi.softAP(ssid, password);
     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
     dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
 
-    Serial.printf("\n[AP Mode]: Access Point Started!\n");
-    Serial.printf("[AP Mode]: SSID: \"%s\"\n", ssid);
-    Serial.printf("[AP Mode]: Password: \"%s\"\n", password);
-    Serial.printf("[AP Mode]: AP IP Address: http://%s\n", WiFi.softAPIP().toString().c_str());
+    Serial.printf("\n[AP Mode]: Erisim noktasi acildi / Access Point Started!\n");
+    Serial.printf("[AP Mode]: Ag adi / SSID: \"%s\"\n", ssid);
+    Serial.printf("[AP Mode]: Sifre / Password: \"%s\"\n", (password && password[0]) ? password : "(yok / none)");
+    Serial.printf("[AP Mode]: Adres / AP IP Address: http://%s\n", WiFi.softAPIP().toString().c_str());
   }
 
   // 📌 Sayfaları tanımla
-  serverCODLAI.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                  {
+  // Varsayilan "/" sayfasi: kullanici "/" icin kendi sayfasini
+  // (serverCreateLocalPage / serverOnRequest) ONCEDEN tanimladiysa eklenmez;
+  // SONRADAN tanimlarsa bu isaretci ile kaldirilir.
+  // / Default "/" page: not added if the user already registered "/" (via
+  // serverCreateLocalPage / serverOnRequest); removed through this pointer if
+  // the user registers it later.
+  if (!_serverUserRoot && !_serverRootHandler)
+  {
+    _serverRootHandler = &serverCODLAI.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+                                          {
       Serial.println("[Local Server]: Root URL Accessed!");
       request->send(200, "text/plain", "CODLAI Server is Running!"); });
+  }
 
   // 📌 404 Hatası
   serverCODLAI.onNotFound([](AsyncWebServerRequest *request)
@@ -3537,10 +3773,34 @@ inline void IOTBOT::serverStart(const char *mode, const char *ssid, const char *
   Serial.println("[Local Server]: Server Started! ✅");
 }
 
+// url'i "/..." bicimine getirir; "/" ile basliyorsa dokunmaz (eskiden
+// "/" + "/" = "//" oluyordu). Kullanici "/" tanimlarsa varsayilan "CODLAI
+// Server is Running!" sayfasini kaldirir.
+// / Normalises url to "/..."; leaves it alone if it already starts with "/"
+// (before, "/" + "/" became "//"). If the user registers "/", removes the
+// default "CODLAI Server is Running!" page.
+inline String IOTBOT::_serverPrepareUrl(const char *url)
+{
+  String path = (url == nullptr) ? String("") : String(url);
+  if (!path.startsWith("/"))
+    path = "/" + path;
+  if (path == "/")
+  {
+    _serverUserRoot = true;
+    if (_serverRootHandler)
+    {
+      serverCODLAI.removeHandler(_serverRootHandler); // Nesneyi de siler / also deletes the object
+      _serverRootHandler = nullptr;
+    }
+  }
+  return path;
+}
+
 inline void IOTBOT::serverCreateLocalPage(const char *url, const char *WEBPageScript, const char *WEBPageCSS, const char *WEBPageHTML, size_t bufferSize)
 {
+  String path = _serverPrepareUrl(url);
   // 📌 Sayfa içeriğini oluştur
-  serverCODLAI.on(("/" + String(url)).c_str(), HTTP_GET, [WEBPageScript, WEBPageCSS, WEBPageHTML, bufferSize](AsyncWebServerRequest *request)
+  serverCODLAI.on(path.c_str(), HTTP_GET, [WEBPageScript, WEBPageCSS, WEBPageHTML, bufferSize](AsyncWebServerRequest *request)
                   {
                     // Buffer boyutu kullanıcının belirttiği veya varsayılan değerle tanımlanır
                     char *buffer = new char[bufferSize];
@@ -3557,17 +3817,18 @@ inline void IOTBOT::serverCreateLocalPage(const char *url, const char *WEBPageSc
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.printf("[Local Server]: Page created at: http://%s/%s\n", WiFi.localIP().toString().c_str(), url);
+    Serial.printf("[Local Server]: Page created at: http://%s%s\n", WiFi.localIP().toString().c_str(), path.c_str());
   }
   else
   {
-    Serial.printf("[Local Server]: Page created at: http://%s/%s\n", apIP.toString().c_str(), url);
+    Serial.printf("[Local Server]: Page created at: http://%s%s\n", apIP.toString().c_str(), path.c_str());
   }
 }
 
 inline void IOTBOT::serverOnRequest(const char *url, std::function<String()> callback)
 {
-  serverCODLAI.on(url, HTTP_GET, [callback](AsyncWebServerRequest *request)
+  String path = _serverPrepareUrl(url);
+  serverCODLAI.on(path.c_str(), HTTP_GET, [callback](AsyncWebServerRequest *request)
                   {
                     String response = callback(); // Donanim burada tetiklenir (LED/role/vb.)
                     request->send(200, "text/plain", response);
@@ -3581,7 +3842,11 @@ inline void IOTBOT::serverHandleDNS()
 
 inline void IOTBOT::serverContinue()
 {
-  if (WiFi.getMode() == WIFI_AP)
+  // AP+STA (WIFI_AP_STA) modunda da DNS calissin; eskiden sadece tam
+  // WIFI_AP'de isleniyordu. / Handle DNS in AP+STA (WIFI_AP_STA) mode too;
+  // it used to run only in exactly WIFI_AP.
+  wifi_mode_t m = WiFi.getMode();
+  if (m == WIFI_AP || m == WIFI_AP_STA)
   {
     serverHandleDNS();
   }
@@ -3593,12 +3858,14 @@ inline void IOTBOT::serverContinue()
 #if defined(USE_FIREBASE)
 
 // Initialize Firebase connection with SignUp Authentication
-inline void IOTBOT::fbServerSetandStartWithUser(const char *projectURL, const char *secretKey, const char *userMail, const char *mailPass)
+inline void IOTBOT::fbServerSetandStartWithUser(const char *projectURL, const char *apiKey, const char *userMail, const char *mailPass)
 {
   firebaseData.setResponseSize(1024); // Optimize memory usage
 
   // Firebase Configuration Settings
-  firebaseConfig.api_key = secretKey;
+  // 2. parametre Web API Key'dir (eski yorum yanlislikla DATABASE_SECRET diyordu).
+  // / The 2nd parameter is the Web API Key (the old comment wrongly said DATABASE_SECRET).
+  firebaseConfig.api_key = apiKey;
   firebaseConfig.database_url = projectURL;
   firebaseAuth.user.email = userMail;
   firebaseAuth.user.password = mailPass;
@@ -3614,10 +3881,10 @@ inline void IOTBOT::fbServerSetandStartWithUser(const char *projectURL, const ch
   Firebase.reconnectWiFi(true);
 
   // Firebase başlat
-  Serial.println("[Firebase]: Firebase connection starting...");
+  Serial.println("[Firebase]: Baglanti baslatiliyor... / Firebase connection starting...");
   Firebase.begin(&firebaseConfig, &firebaseAuth);
 
-  Serial.println("[Firebase]: Verifying user credentials...");
+  Serial.println("[Firebase]: Kullanici dogrulaniyor... / Verifying user credentials...");
   uint8_t id_count = 0;
   while (firebaseAuth.token.uid == "" && id_count < 50)
   {
@@ -3627,7 +3894,7 @@ inline void IOTBOT::fbServerSetandStartWithUser(const char *projectURL, const ch
   }
   if (firebaseAuth.token.uid == "")
   {
-    Serial.println("\n[ERROR]: Authentication timeout.");
+    Serial.println("\n[ERROR]: Kimlik dogrulama zaman asimi (API Key / e-posta / sifre?) / Authentication timeout (API Key / email / password?).");
   }
   else
   {
@@ -3635,12 +3902,12 @@ inline void IOTBOT::fbServerSetandStartWithUser(const char *projectURL, const ch
     {
       strncpy(uid, firebaseAuth.token.uid.c_str(), 128 - 1); // UID'yi kopyala ve taşma kontrolü yap
       uid[128 - 1] = '\0';                                   // Diziyi null karakter ile sonlandır
-      Serial.print("\n[Info]: Doğrulanan Kimlik ID: ");
+      Serial.print("\n[Info]: Dogrulanan kimlik ID / Verified user ID: ");
       Serial.println(uid);
     }
     else
     {
-      Serial.print("[ERROR]: Sign-up failed. Reason: ");
+      Serial.print("[ERROR]: Giris basarisiz. Neden / Sign-in failed. Reason: ");
       Serial.println(firebaseData.errorReason());
     }
   }
@@ -3964,6 +4231,34 @@ inline float IOTBOT::espNowReadNumber()
 }
 #endif
 
+/*********************************** URL kodlama / URL encoding ***********************************/
+#if defined(USE_TELEGRAM) || defined(USE_WEATHER) || defined(USE_WIKIPEDIA) || defined(USE_IFTTT)
+inline String IOTBOT::urlEncode(const String &text)
+{
+  // String zaten UTF-8 baytlari tutar; her bayt ayri %XX olur (RFC 3986).
+  // / String already holds UTF-8 bytes; each byte becomes its own %XX (RFC 3986).
+  static const char hex[] = "0123456789ABCDEF";
+  String out;
+  out.reserve(text.length() * 3);
+  for (unsigned int i = 0; i < text.length(); i++)
+  {
+    const uint8_t c = (uint8_t)text[i];
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+        c == '-' || c == '_' || c == '.' || c == '~')
+    {
+      out += (char)c;
+    }
+    else
+    {
+      out += '%';
+      out += hex[c >> 4];
+      out += hex[c & 0x0F];
+    }
+  }
+  return out;
+}
+#endif
+
 /*********************************** Telegram ***********************************/
 #if defined(USE_TELEGRAM)
 inline void IOTBOT::sendTelegram(String token, String chatId, String message)
@@ -3978,7 +4273,13 @@ inline void IOTBOT::sendTelegram(String token, String chatId, String message)
   client.setInsecure(); // Educational use: skip certificate validation
   
   HTTPClient http;
-  String url = "https://api.telegram.org/bot" + token + "/sendMessage?chat_id=" + chatId + "&text=" + message;
+  // Mesaj artik tam UTF-8 %XX kodlaniyor (eskiden sadece bosluk degisiyordu:
+  // Turkce harf, "&", "#", "+", satir sonu mesaji bozuyor/kesiyordu). Sketch'te
+  // ONCEDEN kodlamayin - cift kodlanir ("%" -> "%25").
+  // / The message is now fully UTF-8 %XX encoded (before, only spaces were
+  // replaced: Turkish letters, "&", "#", "+", newlines broke/cut the message).
+  // Do NOT pre-encode in the sketch - it would be encoded twice ("%" -> "%25").
+  String url = "https://api.telegram.org/bot" + token + "/sendMessage?chat_id=" + urlEncode(chatId) + "&text=" + urlEncode(message);
   
   Serial.println("[Telegram]: Sending message...");
   
@@ -4052,6 +4353,13 @@ inline void IOTBOT::bluetoothStart(String name, String pin)
     Serial.println("[Bluetooth]: PIN set to " + pin);
   }
   serialBT.begin(name); // Bluetooth device name
+  // bluetoothRead() readString() kullanir; Stream'in varsayilan 1000 ms
+  // zaman asimi yuzunden her mesajda ~1 sn donuyordu (loop donuyordu).
+  // 40 ms, telefon uygulamasinin tek seferde gonderdigi metni toplamaya
+  // yeter. / bluetoothRead() uses readString(); with Stream's default 1000 ms
+  // timeout it froze ~1 s on every message (stalling loop). 40 ms is enough to
+  // collect the text a phone app sends in one go.
+  serialBT.setTimeout(40);
   Serial.println("[Bluetooth]: Started as " + name);
 }
 
@@ -4129,6 +4437,16 @@ inline String IOTBOT::getWeather(String city, String apiKey)
   if (WiFi.status() != WL_CONNECTED)
     return "WiFi Error";
 
+  // client, http'den ONCE tanimlanmali: yerel nesneler ters sirada yok
+  // edilir ve ~HTTPClient hala tuttugu client'in stop()'unu cagirir. Eskiden
+  // client icteki blokta (http'den sonra) tanimliydi -> once o yok ediliyor,
+  // sonra http yok olmus nesneye erisiyordu. / client must be declared BEFORE
+  // http: locals are destroyed in reverse order and ~HTTPClient calls stop()
+  // on the client it still holds. It used to live in the inner block (after
+  // http) -> destroyed first, then http touched a dead object.
+  WiFiClientSecure client;
+  client.setInsecure(); // Sertifika doğrulamasını atla / Skip certificate validation
+  client.setHandshakeTimeout(20000); // 20 saniye handshake zaman aşımı
   HTTPClient http;
   String url;
 
@@ -4136,13 +4454,11 @@ inline String IOTBOT::getWeather(String city, String apiKey)
   // If API Key is empty or default, use wttr.in (No API Key required)
   if (apiKey == "" || apiKey == "YOUR_API_KEY") {
       Serial.println("[Weather]: Using wttr.in (Free Service)...");
-      
-      WiFiClientSecure client;
-      client.setInsecure(); // Sertifika doğrulamasını atla / Skip certificate validation
-      client.setHandshakeTimeout(20000); // 20 saniye handshake zaman aşımı
 
       // wttr.in format: %t (Temperature), %C (Condition)
-      url = "https://wttr.in/" + city + "?format=%t+%C";
+      // Sehir adi kutuphanede kodlanir (bosluk/Turkce harf) - sketch'te kodlamayin.
+      // / The city name is encoded here (spaces/Turkish letters) - don't pre-encode it.
+      url = "https://wttr.in/" + urlEncode(city) + "?format=%t+%C";
       
       Serial.println("[Weather]: Requesting URL: " + url);
       
@@ -4169,11 +4485,22 @@ inline String IOTBOT::getWeather(String city, String apiKey)
   } 
   else {
       // OpenWeatherMap kullan
-      url = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "&appid=" + apiKey + "&units=metric";
+      // ESKIDEN duz http:// idi (API anahtari agda acik gidiyordu) ve sehir
+      // adi kodlanmiyordu. Artik wttr.in dali gibi https + WiFiClientSecure.
+      // / It used plain http:// (the API key travelled in clear) and the city
+      // was not encoded. Now https + WiFiClientSecure like the wttr.in branch.
+      url = "https://api.openweathermap.org/data/2.5/weather?q=" + urlEncode(city) + "&appid=" + urlEncode(apiKey) + "&units=metric";
 
-      http.begin(url);
+      http.begin(client, url);
+      http.setConnectTimeout(20000);
       int httpCode = http.GET();
 
+      if (httpCode > 0 && httpCode != HTTP_CODE_OK)
+      {
+        // 401 = yanlis API anahtari, 404 = sehir bulunamadi / 401 = wrong API key, 404 = city not found
+        http.end();
+        return "Error (OWM): HTTP " + String(httpCode);
+      }
       if (httpCode > 0)
       {
         String payload = http.getString();
@@ -4206,8 +4533,15 @@ inline String IOTBOT::getWikipedia(String query, String lang)
   client.setHandshakeTimeout(20000); // 20 saniye handshake zaman aşımı
 
   HTTPClient http;
+  // Baslik kutuphanede kodlanir: bosluk -> "_" (Wikipedia baslik kurali), Turkce
+  // harf ve ozel karakterler -> %XX. Sketch'te kodlamayin (cift kodlanir).
+  // / The title is encoded here: space -> "_" (Wikipedia title rule), Turkish
+  // letters and special chars -> %XX. Don't pre-encode it in the sketch.
+  String title = query;
+  title.trim();
+  title.replace(" ", "_");
   // Dil seçeneğine göre URL oluştur / Create URL based on language option
-  String url = "https://" + lang + ".wikipedia.org/api/rest_v1/page/summary/" + query;
+  String url = "https://" + lang + ".wikipedia.org/api/rest_v1/page/summary/" + urlEncode(title);
 
   Serial.println("[Wikipedia]: Requesting URL: " + url);
   
@@ -4252,8 +4586,22 @@ inline void IOTBOT::lcdWriteFixedTxt(int col, int row, const char *txt, int widt
 {
   lcd.setCursor(col, row);
   String s = convertTR(String(txt));
+  // Genisligi asan metin kirpilir: eskiden kirpilmadigi icin uzun metin
+  // satir sonundan tasip BASKA bir satira (HD44780: 0->2, 1->3) yaziliyordu.
+  // Kirpma Turkce donusumunden SONRA yapilir (ç/ş... artik tek bayt).
+  // / Text longer than width is cut: before, it spilled past the row end onto
+  // ANOTHER row (HD44780: 0->2, 1->3). Cut AFTER the Turkish conversion
+  // (ç/ş... are single bytes by then).
+  int maxLen = width;
+  if (col >= 0 && col < 20 && (maxLen <= 0 || maxLen > 20 - col))
+    maxLen = 20 - col;
+  if (maxLen > 0 && (int)s.length() > maxLen)
+    s = s.substring(0, maxLen);
   lcd.print(s);
-  for (int i = s.length(); i < width; i++) lcd.print(" ");
+  // Bosluk doldurma da satir sonunda durur (width > 20 - col ise tasmasin).
+  // / Padding also stops at the row end (no spill when width > 20 - col).
+  int padTo = (width < maxLen) ? width : maxLen;
+  for (int i = s.length(); i < padTo; i++) lcd.print(" ");
 }
 
 inline void IOTBOT::lcdWriteFixed(int col, int row, int value, int width)

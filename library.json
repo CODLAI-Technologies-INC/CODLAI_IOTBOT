@@ -1,6 +1,6 @@
 {
   "name": "CODLAI_IOTBOT",
-  "version": "1.7.3",
+  "version": "1.8.0",
   "description": "Library for IOTBOT, an ESP32-based programmable device. Visit www.codlai.com for more information.",
   "keywords": [
     "robotics",
@@ -46,7 +46,8 @@
     "espressif32"
   ],
   "examples": [
-    "examples/main/IOTBOT_basic_example"
+    "examples/main/*/*/*.ino",
+    "examples/modules/*/*.ino"
   ],
   "homepage": "https://github.com/CODLAI-Technologies-INC/CODLAI_IOTBOT",
   "dependencies": {

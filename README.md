@@ -9,7 +9,7 @@ This library is specially designed and produced by the CODLAI developer team to 
 1. Open the Arduino IDE.
 2. Go to "Sketch" -> "Include Library" -> "Manage Libraries..." from the menu bar.
 3. Type "IoTBOT" in the search box.
-4. Find the IoTBOT library and click the "Install" button to complete the installation.
+4. Find the IoTBOT library and click the "Install" button to complete the installation.
 
 ## Using with PlatformIO
 
@@ -74,7 +74,7 @@ C++, MicroPython (Text and Block-Based)
 
 ### Cloud Integrations
 - Send instant alerts via Telegram bots with `sendTelegram()`.
-- Connect directly to IFTTT services (Google Sheets, Discord, smart lights, etc.) using the new `triggerIFTTTEvent()` helper. See `examples/main/2-Advanced/IOTBOT_IFTTT_Webhook_Example.ino` for a ready-to-run sketch.
+- Connect directly to IFTTT services (Google Sheets, Discord, smart lights, etc.) using the new `triggerIFTTTEvent()` helper. See `examples/main/2-Advanced/IOTBOT_IFTTT_Webhook_Example/IOTBOT_IFTTT_Webhook_Example.ino` for a ready-to-run sketch.
 
 ### Security:
 AES and SSL/TLS hardware accelerators
@@ -118,7 +118,7 @@ Bu kütüphane CODLAI geliştirici ekibi tarafından IoTBOT ürününü kontrol 
 1. Arduino IDE'yi açın.
 2. Menu çubuğundan "Sketch" -> "Include Library" -> "Manage Libraries..." seçeneğine gidin.
 3. Arama kutusuna "IoTBOT" yazın.
-4. IoTBOT kütüphanesini bulun ve "Install" düğmesine tıklayarak kurulumu tamamlayın.
+4. IoTBOT kütüphanesini bulun ve "Install" düğmesine tıklayarak kurulumu tamamlayın.
 
 ## PlatformIO ile Kullanım
 
@@ -184,7 +184,7 @@ C++, MicroPython (Metin ve Blok Tabanlı)
 
 ### Bulut Entegrasyonları
 - `sendTelegram()` ile Telegram botlarına anlık bildirimler gönderebilirsiniz.
-- Yeni `triggerIFTTTEvent()` fonksiyonu ile IFTTT servislerine (Google Sheets, Discord, akıllı ışıklar vb.) doğrudan bağlanabilirsiniz. Hazır örnek için `examples/main/2-Advanced/IOTBOT_IFTTT_Webhook_Example.ino` dosyasına göz atın.
+- Yeni `triggerIFTTTEvent()` fonksiyonu ile IFTTT servislerine (Google Sheets, Discord, akıllı ışıklar vb.) doğrudan bağlanabilirsiniz. Hazır örnek için `examples/main/2-Advanced/IOTBOT_IFTTT_Webhook_Example/IOTBOT_IFTTT_Webhook_Example.ino` dosyasına göz atın.
 
 ### Güvenlik:
 AES ve SSL/TLS için donanım hızlandırıcıları
@@ -196,6 +196,26 @@ CE, ROSH, EMC
 [YouTube'da İzle](https://www.youtube.com/watch?v=nx7cBQLKk_k&t=6s&ab_channel=CODLAI)
 
 ---
+
+<!-- EXAMPLES:START -->
+# Examples / Örnekler
+
+**EN:** 80 examples - Basic (9), Modules (20), Advanced (33), Projects (18). Every example follows the same rules:
+- **Turkish / English:** `bool turkish = true;` at the top picks the language. Type `lang` (or `dil`) in the Serial Monitor to switch while it runs. Serial, LCD and web texts follow it.
+- **Serial port (115200 baud):** commands work in both languages (`help` = `yardim`, `angle 90` = `aci 90` = `açı 90`) and with any line-ending setting. Type `help` for the list.
+- **Auto / manual:** 29 examples that drive something (motor, servo, relay, LED, buzzer, robot) start in **AUTO** mode with a demo. Press the **B3** button to switch to **MANUAL**. In manual mode you drive it with the potentiometer, joystick, encoder and B1/B2. An actuator command sent from serial also switches to manual.
+- 10 examples need your own settings (WiFi, tokens, keys): fill in the `YOUR_...` placeholders.
+- Each example is in its own folder (`Folder/Folder.ino`), so it shows up under *File > Examples* in the Arduino IDE.
+- `examples/examples.json` lists every example with its board, required modules, summary (TR/EN) and serial commands (used by editor.codlai.com).
+
+**TR:** 80 örnek - Temel (9), Modüller (20), İleri (33), Projeler (18). Tüm örnekler aynı kurallara uyar:
+- **Türkçe / İngilizce:** En üstteki `bool turkish = true;` dili seçer. Çalışırken Seri Monitör'e `dil` (veya `lang`) yazarak değiştirebilirsiniz. Seri port, LCD ve web metinleri seçilen dili izler.
+- **Seri port (115200 baud):** komutlar iki dilde de çalışır (`yardim` = `help`, `aci 90` = `açı 90` = `angle 90`) ve satır sonu ayarı ne olursa olsun algılanır. Komut listesi için `yardim` yazın.
+- **Otomatik / manuel:** Bir şey süren 29 örnek (motor, servo, röle, LED, buzzer, robot) **OTOMATİK** modda bir gösteriyle başlar. **B3** butonu ile **MANUEL** moda geçersiniz. Manuel modda potansiyometre, joystick, encoder ve B1/B2 ile kontrol edersiniz. Seri porttan gönderilen bir çalıştırma komutu da manuel moda geçirir.
+- 10 örnek sizin ayarlarınızı ister (WiFi, token, anahtar): `YOUR_...` yer tutucularını doldurun.
+- Her örnek kendi klasöründedir (`Klasör/Klasör.ino`); Arduino IDE'de *Dosya > Örnekler* menüsünde görünür.
+- `examples/examples.json` her örneği kartı, gerektirdiği modüller, özeti (TR/EN) ve seri komutlarıyla listeler (editor.codlai.com kullanır).
+<!-- EXAMPLES:END -->
 
 # Library Structure & Contributing / Kütüphane Yapısı ve Katkıda Bulunma
 This library follows a modular design pattern to ensure efficiency.

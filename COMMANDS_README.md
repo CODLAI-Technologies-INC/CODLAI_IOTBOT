@@ -51,8 +51,8 @@
     *   **EN:** Writes 4 lines of text, centered on the screen.
     *   **TR:** 4 satırlık metni ekrana ortalayarak yazar.
 *   `void lcdWriteFixedTxt(int col, int row, const char *txt, int width)`
-    *   **EN:** Writes fixed-width text to the specified position (prevents overflow).
-    *   **TR:** Belirtilen genişlikte sabit metin yazar (taşmaları engeller).
+    *   **EN:** Writes fixed-width text to the specified position: shorter text is padded with spaces, longer text is CUT to `width` (and to the end of the 20-column row), so it never spills onto another row. Turkish letters are converted first.
+    *   **TR:** Belirtilen genişlikte sabit metin yazar: kısa metin boşlukla doldurulur, uzun metin `width` kadar (ve 20 kolonluk satırın sonunda) KESİLİR, böylece başka satıra taşmaz. Türkçe harfler önce dönüştürülür.
 *   `void lcdWriteFixed(int col, int row, int value, int width)`
     *   **EN:** Writes a number with a fixed width.
     *   **TR:** Belirtilen genişlikte sayı yazar.
@@ -63,11 +63,11 @@
     *   **EN:** Clears the LCD screen completely.
     *   **TR:** LCD ekranını tamamen temizler.
 *   `void lcdShowLoading(String message)`
-    *   **EN:** Shows a loading animation along with the provided message.
-    *   **TR:** Ekranda bir yükleme animasyonu ile birlikte verilen mesajı gösterir.
+    *   **EN:** Shows a loading animation along with the provided message (centered; text longer than 20 characters is cut to 20).
+    *   **TR:** Ekranda bir yükleme animasyonu ile birlikte verilen mesajı gösterir (ortalanır; 20 karakterden uzun metin 20'de kesilir).
 *   `void lcdShowStatus(String title, String status, bool isSuccess)`
-    *   **EN:** Creates a status screen (e.g., "WiFi [OK]" or "Error [X]").
-    *   **TR:** Bir durum ekranı oluşturur (Örn: "WiFi [OK]" veya "Hata [X]").
+    *   **EN:** Creates a status screen (e.g., "WiFi [OK]" or "Error [X]"). Title/status longer than 20 characters are cut to 20.
+    *   **TR:** Bir durum ekranı oluşturur (Örn: "WiFi [OK]" veya "Hata [X]"). 20 karakterden uzun başlık/durum 20'de kesilir.
 *   `void lcdtest()`
     *   **EN:** Tests the LCD screen.
     *   **TR:** LCD ekranını test eder.
@@ -149,8 +149,8 @@
         *   **EN:** Reads the vibration sensor analog value.
         *   **TR:** Titreşim sensörünü analog olarak okur.
     *   `float moduleNtcTempRead(int pin)`
-        *   **EN:** Reads temperature from the NTC sensor (Celsius).
-        *   **TR:** NTC sensöründen sıcaklık okur (Celsius).
+        *   **EN:** Reads temperature from the NTC sensor (Celsius). Returns `-999` if the sensor is unplugged or shorted (ADC 0 or 4095) - the same error value as the DHT functions.
+        *   **TR:** NTC sensöründen sıcaklık okur (Celsius). Sensör takılı değilse ya da kısa devreyse (ADC 0 veya 4095) `-999` döndürür - DHT fonksiyonlarıyla aynı hata değeri.
     *   `int moduleMatrisButtonAnalogRead(int pin)`
         *   **EN:** Reads analog value from the matrix button.
         *   **TR:** Matris butondan analog değer okur.
@@ -173,8 +173,8 @@
         *   **EN:** Stops the DC motor with braking.
         *   **TR:** DC motoru frenleyerek durdurur.
     *   `void moduleStepMotorMotion(int step, bool rotation, int accelometer, int speed)`
-        *   **EN:** Controls a stepper motor (Steps, Direction, Acceleration, Speed).
-        *   **TR:** Step motoru kontrol eder (Adım sayısı, Yön, İvme, Hız).
+        *   **EN:** Controls a stepper motor: `step` = steps per revolution (used for the speed), `rotation` = direction, `accelometer` = number of steps to move, `speed` = RPM. Blocks until the move ends. The coil phase is kept between calls, so a long move can be split into small chunks of any size (even 1 step) without jerking.
+        *   **TR:** Step motoru kontrol eder: `step` = tur başına adım (hız için kullanılır), `rotation` = yön, `accelometer` = atılacak adım sayısı, `speed` = devir/dakika. Hareket bitene kadar bekler. Bobin fazı çağrılar arasında korunur; uzun bir hareket her boyutta (1 adım bile) küçük parçalara bölünebilir, motor geri sıçramaz.
         *   **Gerekli / Required:** `#include <IOTBOT.h>`'tan ÖNCE `#define USE_STEP_MOTOR` (1.4.0'dan beri; yoksa "moduleStepMotorMotion was not declared" derleme hatası). Sabit pinler IO26, IO33, IO32, IO27 - trafik ışığı, ultrasonik ve P2-P5 ile aynı anda kullanmayın. / `#define USE_STEP_MOTOR` BEFORE `#include <IOTBOT.h>` (since 1.4.0; otherwise a "moduleStepMotorMotion was not declared" compile error). Fixed pins IO26, IO33, IO32, IO27 - do not combine with the traffic light, ultrasonic or P2-P5.
 *   **Servos / Servolar**:
     *   `void moduleServoGoAngle(int pin, int angle, int acceleration)`
@@ -248,8 +248,14 @@
         *   **EN:** Creates a color wipe effect.
         *   **TR:** Renk silme efekti yapar.
     *   `uint32_t getColor(int red, int green, int blue)`
-        *   **EN:** Generates a color code from RGB values.
-        *   **TR:** RGB değerlerinden renk kodu üretir.
+        *   **EN:** Generates a color code from RGB values (0-255; also works before `moduleSmartLEDPrepare`).
+        *   **TR:** RGB değerlerinden renk kodu üretir (0-255; `moduleSmartLEDPrepare`'den önce de çalışır).
+    *   `void moduleSmartLEDSetBrightness(int brightness)`
+        *   **EN:** Sets the brightness (0-255). Write the color again (Fill/Write) after changing it: the Adafruit brightness scaling is lossy and `0` erases the stored colors. All `moduleSmartLED*` functions safely do nothing before `moduleSmartLEDPrepare`.
+        *   **TR:** Parlaklığı ayarlar (0-255). Değiştirdikten sonra rengi tekrar yazın (Fill/Write): Adafruit parlaklık ölçeklemesi kayıplıdır ve `0` saklanan renkleri siler. Tüm `moduleSmartLED*` fonksiyonları `moduleSmartLEDPrepare`'den önce çağrılırsa güvenle hiçbir şey yapmaz.
+    *   `void moduleSmartLEDBreathe(int red, int green, int blue, int ms)`
+        *   **EN:** "Breathing" effect: fades the color in and out in `ms` milliseconds (blocking), respecting the brightness set with `moduleSmartLEDSetBrightness`; afterwards the LEDs return to their previous state.
+        *   **TR:** "Nefes alma" efekti: rengi `ms` milisaniyede yavaşça yakıp söndürür (bekletir), `moduleSmartLEDSetBrightness` ile ayarlanan parlaklığa uyar; bitince LED'ler önceki haline döner.
 
 ### Advanced Sensors / Gelişmiş Sensörler
 *   **DHT (Temperature/Humidity) / DHT (Sıcaklık/Nem)**:
@@ -270,12 +276,12 @@
         *   **TR:** Hissedilen sıcaklığı (Isı İndeksi - °F) hesaplar.
 *   **Ultrasonic (Distance) / Ultrasonik (Mesafe)**:
     *   `int moduleUltrasonicDistanceRead()`
-        *   **EN:** Measures distance in centimeters (cm) (Pins are defined in the library).
-        *   **TR:** Mesafeyi santimetre (cm) cinsinden ölçer (Pinler kütüphanede tanımlıdır).
+        *   **EN:** Measures distance in centimeters (cm) (Pins are defined in the library). Returns `0` when there is no valid reading: no echo (nothing within 400 cm / sensor unplugged) or farther than 400 cm.
+        *   **TR:** Mesafeyi santimetre (cm) cinsinden ölçer (Pinler kütüphanede tanımlıdır). Geçerli ölçüm yoksa `0` döndürür: yankı yok (400 cm içinde cisim yok / sensör takılı değil) ya da 400 cm'den uzak.
 *   **RFID (Card Reader) / RFID (Kart Okuyucu)**:
     *   `int moduleRFIDRead()`
-        *   **EN:** Returns the ID number of the read RFID card.
-        *   **TR:** Okunan RFID kartının kimlik numarasını (ID) döndürür.
+        *   **EN:** Returns the ID number of the read RFID card (`0` = no new card). The ID is the first 4 UID bytes as a big-endian 32-bit number (may look negative as `int`; longer UIDs fold the rest in). NOTE: IDs from library versions before this change are DIFFERENT (the old decimal-string method overflowed and collided) - scan the cards again.
+        *   **TR:** Okunan RFID kartının kimlik numarasını (ID) döndürür (`0` = yeni kart yok). ID, UID'nin ilk 4 baytının büyük-endian 32 bit sayısıdır (`int` olarak eksi görünebilir; uzun UID'lerde kalan baytlar da katılır). DİKKAT: Bu değişiklikten önceki kütüphane sürümlerinin verdiği ID'ler FARKLIDIR (eski ondalık metin yöntemi taşıyor ve çakışıyordu) - kartları yeniden okutun.
 *   **IR Receiver (Remote) / IR Alıcı (Kumanda)**:
     *   `String moduleIRReadHex(int pin)`
         *   **EN:** Reads the signal from the IR remote as a Hexadecimal String.
@@ -307,8 +313,8 @@
     *   **EN:** Writes a legacy 16-bit (2-byte) integer to EEPROM.
     *   **TR:** EEPROM'a eski tip 16-bit (2 bayt) tam sayı yazar.
 *   `int eepromReadInt(int address)`
-    *   **EN:** Reads a legacy 16-bit (2-byte) integer from EEPROM.
-    *   **TR:** EEPROM'dan eski tip 16-bit (2 bayt) tam sayı okur.
+    *   **EN:** Reads a legacy 16-bit (2-byte) integer from EEPROM as a SIGNED value (-32768..32767), so negative numbers come back correctly. A never-written (0xFF) EEPROM reads `-1` (was 65535).
+    *   **TR:** EEPROM'dan eski tip 16-bit (2 bayt) tam sayıyı İŞARETLİ (-32768..32767) okur; eksi sayılar doğru geri gelir. Hiç yazılmamış (0xFF) EEPROM `-1` okunur (eskiden 65535).
 *   `bool eepromBegin(size_t size = 1024)`
     *   **EN:** Initializes EEPROM emulation.
     *   **TR:** EEPROM emülasyonunu başlatır.
@@ -328,8 +334,8 @@
     *   **EN:** Float read/write.
     *   **TR:** Float okuma/yazma.
 *   `bool eepromWriteString(int address, const String &value, uint16_t maxLen = 128)` / `String eepromReadString(int address, uint16_t maxLen = 128)`
-    *   **EN:** Stores string as `[uint16 length][bytes...]`.
-    *   **TR:** String'i `[uint16 uzunluk][baytlar...]` formatında saklar.
+    *   **EN:** Stores string as `[uint16 length][bytes...]`. Reading a never-written (0xFF) area returns `""`.
+    *   **TR:** String'i `[uint16 uzunluk][baytlar...]` formatında saklar. Hiç yazılmamış (0xFF) alan okunursa `""` döner.
 *   `bool eepromWriteBytes(int address, const uint8_t *data, size_t len)` / `bool eepromReadBytes(int address, uint8_t *data, size_t len)`
     *   **EN:** Raw bytes read/write.
     *   **TR:** Ham bayt okuma/yazma.
@@ -349,11 +355,11 @@
 ### Communication / İletişim
 *   **WiFi**:
     *   `void wifiStartAndConnect(const char *ssid, const char *pass)`
-        *   **EN:** Connects to a WiFi network.
-        *   **TR:** WiFi ağına bağlanır.
+        *   **EN:** Connects to a WiFi network (waits max ~15 s). The password is masked (`********`) in the serial output.
+        *   **TR:** WiFi ağına bağlanır (en fazla ~15 sn bekler). Şifre seri port çıktısında gizlenir (`********`).
     *   `bool wifiConnectionControl()`
-        *   **EN:** Checks the connection status.
-        *   **TR:** Bağlantı durumunu kontrol eder.
+        *   **EN:** Checks the connection status. Prints a line to Serial only when the state changes (safe to call in `loop()`).
+        *   **TR:** Bağlantı durumunu kontrol eder. Seri porta sadece durum değişince yazar (`loop()` içinde çağrılabilir).
     *   `String wifiGetIPAddress()`
         *   **EN:** Returns the device's local IP address.
         *   **TR:** Cihazın yerel IP adresini döndürür.
@@ -381,8 +387,8 @@
         *   **EN:** Returns epoch / formatted datetime string.
         *   **TR:** Epoch / formatlı tarih-saat string'i döndürür.
     *   `bool ntpUpdate()`
-        *   **EN:** Re-syncs the clock NOW with the last `ntpBegin`/`ntpSync` settings ("update internet time" block). The core also re-syncs by itself about every hour.
-        *   **TR:** Saati son `ntpBegin`/`ntpSync` ayarlariyla HEMEN yeniden esitler ("Internet saatini guncelle" blogu). Cekirdek ayrica yaklasik saatte bir kendiliginden esitler.
+        *   **EN:** Re-syncs the clock NOW with the last `ntpBegin`/`ntpSync` settings ("update internet time" block): it really asks the server again and waits for a fresh answer (max 10 s). Returns `true` only if that fresh sync succeeded (on `false` the old clock keeps running). The core also re-syncs by itself about every hour.
+        *   **TR:** Saati son `ntpBegin`/`ntpSync` ayarlariyla HEMEN yeniden esitler ("Internet saatini guncelle" blogu): sunucuya gercekten yeniden sorar ve yeni cevabi bekler (en fazla 10 sn). Sadece bu yeni esitleme basariliysa `true` doner (`false` olsa da eski saat calismaya devam eder). Cekirdek ayrica yaklasik saatte bir kendiliginden esitler.
     *   `int ntpGetHour()` / `ntpGetMinute()` / `ntpGetSecond()` / `ntpGetDay()` / `ntpGetMonth()` / `ntpGetYear()` / `ntpGetWeekday()`
         *   **EN:** Parts of the local time; weekday 1=Monday ... 7=Sunday. Return -1 while the time is not valid.
         *   **TR:** Yerel saatin parcalari; haftanin gunu 1=Pazartesi ... 7=Pazar. Saat gecerli degilken -1 dondurur.
@@ -399,6 +405,9 @@
         *   **EN:** True if start <= now < end; ranges crossing midnight (22:00-06:00) work.
         *   **TR:** baslangic <= simdi < bitis ise true; gece yarisini asan araliklar (22:00-06:00) de calisir.
 *   **ESP-NOW**:
+    *   **`deviceType` haritası / map** (`CodlaiESPNowMessage.deviceType`):
+        *   **EN:** 1 = Armbot command, 2 = Carbot command, 3 = Carbot telemetry, 4 = Armbot signal, 10 = IOTBOT LDR broadcast, 11 = IOTBOT temperature broadcast, 20 = simple text message, 21 = simple number message, 22-29 = RESERVED for editor.codlai.com private/paired messaging, 30-39 = RESERVED for the CODLAI Robots autonomous project, 40-49 = library example board IDs (40 IOTBOT, 41 MINIBOT, 42 ROLEBOT) used by the Broadcast_Simple / Pair / SmartLED_Remote examples.
+        *   **TR:** 1 = Armbot komutu, 2 = Carbot komutu, 3 = Carbot telemetrisi, 4 = Armbot sinyali, 10 = IOTBOT LDR yayını, 11 = IOTBOT sıcaklık yayını, 20 = basit metin mesajı, 21 = basit sayı mesajı, 22-29 = editor.codlai.com özel/eşleşmeli mesajlaşma için REZERVE, 30-39 = CODLAI Robotları Otonom projesi için REZERVE, 40-49 = kütüphane örneklerinin kart kimlikleri (40 IOTBOT, 41 MINIBOT, 42 ROLEBOT) - Broadcast_Simple / Pair / SmartLED_Remote örnekleri kullanır.
     *   `void initESPNow()`
         *   **EN:** Initializes the ESP-NOW protocol.
         *   **TR:** ESP-NOW protokolünü başlatır.
@@ -428,15 +437,15 @@
         *   **EN:** Sends text via Bluetooth.
         *   **TR:** Bluetooth üzerinden metin gönderir.
     *   `String bluetoothRead()`
-        *   **EN:** Reads data received via Bluetooth.
-        *   **TR:** Bluetooth üzerinden gelen veriyi okur.
+        *   **EN:** Reads data received via Bluetooth (`""` if nothing arrived). Waits at most ~40 ms after the last character (was ~1 s), so `loop()` stays responsive.
+        *   **TR:** Bluetooth üzerinden gelen veriyi okur (gelen yoksa `""`). Son karakterden sonra en fazla ~40 ms bekler (eskiden ~1 sn), `loop()` takılmaz.
     *   `BluetoothSerial* getBluetoothObject()`
         *   **EN:** Provides access to the raw BluetoothSerial object.
         *   **TR:** Ham BluetoothSerial nesnesine erişim sağlar.
 *   **Firebase**:
-    *   `void fbServerSetandStartWithUser(...)`
-        *   **EN:** Connects to Firebase Realtime Database.
-        *   **TR:** Firebase Gerçek Zamanlı Veritabanına bağlanır.
+    *   `void fbServerSetandStartWithUser(const char *projectURL, const char *apiKey, const char *userMail, const char *mailPass)`
+        *   **EN:** Connects to Firebase Realtime Database and signs in with an email/password user. The 2nd parameter is the project's **Web API Key** (Project settings > General) - NOT the Database Secret.
+        *   **TR:** Firebase Gerçek Zamanlı Veritabanına bağlanır ve e-posta/şifre kullanıcısıyla giriş yapar. 2. parametre projenin **Web API Key**'idir (Proje ayarları > Genel) - Database Secret DEĞİL.
     *   `void fbServerSetInt/Float/String/Double/Bool/JSON(...)`
         *   **EN:** Writes data to Firebase.
         *   **TR:** Firebase'e veri yazar.
@@ -460,8 +469,11 @@
         *   **TR:** Firebase'den JSON okur.
 *   **Telegram**:
     *   `void sendTelegram(String token, String chatId, String message)`
-        *   **EN:** Sends a message via a Telegram bot.
-        *   **TR:** Telegram botu üzerinden mesaj gönderir.
+        *   **EN:** Sends a message via a Telegram bot. Pass plain text: the library URL-encodes it (UTF-8 `%XX`: Turkish letters, spaces, `&`, `#`, `+`, newlines). Do NOT encode it yourself (it would be encoded twice).
+        *   **TR:** Telegram botu üzerinden mesaj gönderir. Düz metin verin: kütüphane metni URL için kodlar (UTF-8 `%XX`: Türkçe harf, boşluk, `&`, `#`, `+`, satır sonu). Kendiniz KODLAMAYIN (iki kez kodlanır).
+    *   `static String urlEncode(const String &text)` (`USE_TELEGRAM` / `USE_WEATHER` / `USE_WIKIPEDIA` / `USE_IFTTT`)
+        *   **EN:** UTF-8 percent-encoding helper (`A-Z a-z 0-9 - _ . ~` are kept). Only needed for your own URLs.
+        *   **TR:** UTF-8 yüzde-kodlama yardımcısı (`A-Z a-z 0-9 - _ . ~` aynen kalır). Sadece kendi oluşturduğunuz adresler için gerekir.
 *   **IFTTT**:
     *   `bool triggerIFTTTEvent(const String &eventName, const String &webhookKey, const String &jsonPayload = "{}")`
         *   **EN:** Triggers an IFTTT Webhook event with an optional JSON payload. Returns `true` when the webhook responds with HTTP 200.
@@ -472,24 +484,24 @@
         *   **TR:** SMTP protokolü üzerinden e-posta gönderir.
 *   **Web Server / Web Sunucusu**:
     *   `void serverStart(const char *mode, const char *ssid, const char *password)`
-        *   **EN:** Starts the web server (STA or AP mode).
-        *   **TR:** Web sunucusunu başlatır (STA veya AP modu).
-    *   `void serverCreateLocalPage(...)`
-        *   **EN:** Creates a local web page.
-        *   **TR:** Yerel bir web sayfası oluşturur.
+        *   **EN:** Starts the web server (STA or AP mode). AP passwords must be at least 8 characters: a 1-7 character password is replaced by `12345678` (empty = open network). If "STA" cannot connect in ~30 s, a fallback AP named `CODLAI-IOTBOT` starts (password: the given one if it has 8+ characters, otherwise `12345678`); its name, password and address (`http://192.168.4.1`) are printed to Serial. A default "CODLAI Server is Running!" page is served at `/` until you register your own `/` page.
+        *   **TR:** Web sunucusunu başlatır (STA veya AP modu). AP şifresi en az 8 karakter olmalıdır: 1-7 karakterlik şifre yerine `12345678` kullanılır (boş = şifresiz ağ). "STA" ~30 sn içinde bağlanamazsa `CODLAI-IOTBOT` adlı yedek bir AP açılır (şifre: verilen şifre 8+ karakterse o, değilse `12345678`); adı, şifresi ve adresi (`http://192.168.4.1`) seri porta yazılır. Kendi `/` sayfanızı tanımlayana kadar `/` adresinde varsayılan "CODLAI Server is Running!" sayfası gösterilir.
+    *   `void serverCreateLocalPage(const char *url, ...)` / `void serverOnRequest(const char *url, std::function<String()> callback)`
+        *   **EN:** Creates a local web page / runs your callback on a GET request. `url` may be written with or without the leading `/` (`"panel"` = `"/panel"`); `"/"` replaces the default home page.
+        *   **TR:** Yerel bir web sayfası oluşturur / GET isteğinde fonksiyonunuzu çalıştırır. `url` başında `/` olsa da olmasa da olur (`"panel"` = `"/panel"`); `"/"` varsayılan ana sayfanın yerine geçer.
     *   `void serverHandleDNS()`
         *   **EN:** Handles DNS requests.
         *   **TR:** DNS isteklerini işler.
     *   `void serverContinue()`
-        *   **EN:** Continues the server loop.
-        *   **TR:** Sunucu döngüsünü sürdürür.
+        *   **EN:** Continues the server loop (handles the captive-portal DNS in AP and AP+STA modes). Call it in `loop()`.
+        *   **TR:** Sunucu döngüsünü sürdürür (AP ve AP+STA modlarında DNS isteklerini işler). `loop()` içinde çağırın.
 *   **Internet Services / İnternet Servisleri**:
     *   `String getWeather(String city, String apiKey)`
-        *   **EN:** Fetches weather information (OpenWeatherMap or wttr.in).
-        *   **TR:** Hava durumu bilgisini çeker (OpenWeatherMap veya wttr.in).
+        *   **EN:** Fetches weather information (wttr.in when `apiKey` is empty/"YOUR_API_KEY", otherwise OpenWeatherMap over HTTPS). Pass the city as plain text (e.g. "New York", "Kahramanmaraş"); the library URL-encodes it.
+        *   **TR:** Hava durumu bilgisini çeker (`apiKey` boş/"YOUR_API_KEY" ise wttr.in, değilse HTTPS üzerinden OpenWeatherMap). Şehri düz metin olarak verin (ör. "Kahramanmaraş"); kütüphane adrese uygun hale getirir.
     *   `String getWikipedia(String query, String lang)`
-        *   **EN:** Fetches summary information from Wikipedia.
-        *   **TR:** Wikipedia'dan özet bilgi çeker.
+        *   **EN:** Fetches summary information from Wikipedia. Pass the topic as plain text (e.g. "Ada Lovelace"): spaces become `_` and the title is URL-encoded by the library - do not pre-encode it.
+        *   **TR:** Wikipedia'dan özet bilgi çeker. Konuyu düz metin olarak verin (ör. "Mustafa Kemal Atatürk"): boşluklar `_` olur ve başlık kütüphanede kodlanır - kendiniz kodlamayın.
 
 ### Multi-Tasking (ESP32 Only) / Çoklu Görev (Sadece ESP32)
 *   `void createTask(TaskFunction_t taskFunction, const char *name, int coreID, int stackSize, int priority)`
