@@ -92,6 +92,12 @@ enum AppState {
   MASTER_MENU
 };
 
+// Enum parametreli fonksiyonlarin prototipleri: Arduino IDE otomatik
+// prototipleri enum tanimindan ONCE yazdigi icin "declared void" hatasi
+// veriyordu. / Prototypes of functions taking an enum: the Arduino IDE
+// writes its auto-prototypes BEFORE the enum ("declared void" error).
+void setState(AppState s);
+
 AppState state = ROLE_SELECT;
 bool screenDirty = true;       // Ekran yeniden çizilmeli mi? / does the screen need a redraw?
 uint32_t stateStartMs = 0;     // Bu duruma girilen an / when this state was entered

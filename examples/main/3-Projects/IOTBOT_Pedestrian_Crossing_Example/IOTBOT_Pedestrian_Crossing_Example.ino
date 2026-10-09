@@ -93,6 +93,15 @@ namespace {
   };
 }
 
+// Enum parametreli fonksiyonlarin prototipleri: Arduino IDE otomatik
+// prototipleri enum tanimindan ONCE yazdigi icin "declared void" hatasi
+// veriyordu. / Prototypes of functions taking an enum: the Arduino IDE
+// writes its auto-prototypes BEFORE the enum ("declared void" error).
+const char * lightName(Light l);
+void writeLight(Light l);
+void enterState(State s);
+void setManualLight(Light l);
+
 // ---------------------------------------------------------------------------
 // Seri komut okuyucu / Serial command reader
 // Seri Monitör'ün satır sonu ayarı ne olursa olsun çalışır (NL, CR, ikisi, hiçbiri).

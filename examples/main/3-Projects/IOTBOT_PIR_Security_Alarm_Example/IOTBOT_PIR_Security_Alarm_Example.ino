@@ -90,6 +90,12 @@ namespace {
   uint32_t lastUiMs = 0;
 }
 
+// Enum parametreli fonksiyonlarin prototipleri: Arduino IDE otomatik
+// prototipleri enum tanimindan ONCE yazdigi icin "declared void" hatasi
+// veriyordu. / Prototypes of functions taking an enum: the Arduino IDE
+// writes its auto-prototypes BEFORE the enum ("declared void" error).
+void enterState(State s);
+
 // ---------------------------------------------------------------------------
 // Seri komut okuyucu / Serial command reader
 // Seri Monitör'ün satır sonu ayarı ne olursa olsun çalışır (NL, CR, ikisi, hiçbiri).

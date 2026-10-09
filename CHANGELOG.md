@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-09
+### Fixed
+- Sunucu (`USE_SERVER`) ile Hava Durumu / Wikipedia / Firebase ayni programda Arduino IDE / arduino-cli'de derlenmiyordu ("DynamicJsonDocument was not declared", editor TEST-RAPOR H-2). ESPAsyncWebServer.h ArduinoJson'i `__has_include` ile ariyor; ESP32'nin GCC 8.4'unde bulunamayan dosyanin sonraki `#include`'u hatasiz atlaniyor ve ArduinoJson hic bulunmuyordu. ArduinoJson artik ESPAsyncWebServer'dan ONCE ekleniyor. PlatformIO'yu etkilemiyordu.
+- Ornekler Arduino IDE / arduino-cli'de "variable or field ... declared void" hatasi veriyordu: Arduino'nun otomatik prototipleri enum tanimindan once yaziliyordu. Enum parametreli fonksiyonlara elle prototip eklendi: Bluetooth_Super_Controller, Pedestrian_Crossing, PIR_Security_Alarm, Sound_Reactive_LED. (PlatformIO'da derleniyordu.)
+
 ## [1.8.0] - 2026-10-07
 ### Added
 - **Ornekler bastan yazildi (80 ornek):** hepsi ayni kurala uyuyor - en ustte `bool turkish` ile TR/EN secimi, calisirken seri porttan `dil`/`lang` ile degisim, iki dilli ve bloklamayan seri komutlar (`yardim`/`help`). Bir seyi suren ornekler OTOMATIK gosteriyle baslar, B3 ile MANUEL moda gecilir.

@@ -61,6 +61,19 @@
 #include <MFRC522.h>
 #endif
 
+// ArduinoJson, ESPAsyncWebServer.h'den ONCE eklenmeli: o dosya ArduinoJson'i
+// __has_include ile arar; ESP32'nin GCC 8.4'unde (PR 80753) bulunamayan bir
+// dosyanin SONRAKI #include'u hatasiz atlanir, arduino-cli de ArduinoJson'i
+// hic bulmaz ("DynamicJsonDocument was not declared"; Sunucu + Hava/Wikipedia/
+// Firebase ayni programda). / ArduinoJson must come BEFORE ESPAsyncWebServer.h:
+// that header probes it with __has_include, and on ESP32's GCC 8.4 (PR 80753) a
+// later #include of a file that probe missed is silently skipped, so arduino-cli
+// never finds ArduinoJson ("DynamicJsonDocument was not declared" with Server +
+// Weather/Wikipedia/Firebase in one sketch).
+#if defined(USE_WEATHER) || defined(USE_WIKIPEDIA) || defined(USE_FIREBASE)
+#include <ArduinoJson.h>
+#endif
+
 #if defined(USE_SERVER)
 #ifndef USE_WIFI
 #define USE_WIFI
